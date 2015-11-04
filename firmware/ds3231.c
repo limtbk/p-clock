@@ -1,11 +1,11 @@
 /*
- * ds13xx.c
+ * ds3231.c
  *
  *  Created on: Oct 27, 2014
  *      Author: lim
  */
 
-#include "ds13xx.h"
+#include "ds3231.h"
 #include "i2c.h"
 
 #define DS13xx_I2C_ADDRESS 0x68
@@ -27,7 +27,7 @@ TDate tdate(uint8_t weekday, uint8_t day, uint8_t month, uint8_t year) {
 	return result;
 }
 
-uint8_t ds13xx_settime(TTime time, uint8_t bcd) {
+uint8_t ds3231_settime(TTime time, uint8_t bcd) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
@@ -46,7 +46,7 @@ uint8_t ds13xx_settime(TTime time, uint8_t bcd) {
 	return res;
 }
 
-uint8_t ds13xx_gettime(TTime *time, uint8_t bcd) {
+uint8_t ds3231_gettime(TTime *time, uint8_t bcd) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
@@ -65,7 +65,7 @@ uint8_t ds13xx_gettime(TTime *time, uint8_t bcd) {
 	return res;
 }
 
-uint8_t ds13xx_setdate(TDate date, uint8_t bcd) {
+uint8_t ds3231_setdate(TDate date, uint8_t bcd) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
@@ -85,7 +85,7 @@ uint8_t ds13xx_setdate(TDate date, uint8_t bcd) {
 	return res;
 }
 
-uint8_t ds13xx_getdate(TDate *date, uint8_t bcd) {
+uint8_t ds3231_getdate(TDate *date, uint8_t bcd) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
@@ -105,7 +105,7 @@ uint8_t ds13xx_getdate(TDate *date, uint8_t bcd) {
 	return res;
 }
 
-uint8_t ds13xx_gettemperature(TTemperature *temperature, uint8_t bcd) {
+uint8_t ds3231_gettemperature(TTemperature *temperature, uint8_t bcd) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
@@ -122,7 +122,7 @@ uint8_t ds13xx_gettemperature(TTemperature *temperature, uint8_t bcd) {
 	return res;
 }
 
-uint8_t ds13xx_readbyte(uint8_t addr) {
+uint8_t ds3231_readbyte(uint8_t addr) {
 	uint8_t res = 0;
 	uint8_t result = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
@@ -135,7 +135,7 @@ uint8_t ds13xx_readbyte(uint8_t addr) {
 	return result;
 }
 
-uint8_t ds13xx_writebyte(uint8_t addr, uint8_t byte) {
+uint8_t ds3231_writebyte(uint8_t addr, uint8_t byte) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
@@ -146,7 +146,7 @@ uint8_t ds13xx_writebyte(uint8_t addr, uint8_t byte) {
 	return res;
 }
 
-uint8_t ds13xx_readbytes(uint8_t addr, void *dst, uint8_t count) {
+uint8_t ds3231_readbytes(uint8_t addr, void *dst, uint8_t count) {
 	uint8_t res = 0;
 	if (count>0) {
 		res = i2c_start(DS13xx_I2C_ADDRESS << 1);
@@ -165,7 +165,7 @@ uint8_t ds13xx_readbytes(uint8_t addr, void *dst, uint8_t count) {
 	return res;
 }
 
-uint8_t ds13xx_writebytes(uint8_t addr, void *src, uint8_t count) {
+uint8_t ds3231_writebytes(uint8_t addr, void *src, uint8_t count) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
 	if (res == 0) {
