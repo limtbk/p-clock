@@ -4,7 +4,7 @@ Pomodoro-like LED clock based on 2812 chip
 Current version:
 ![Image 0][img0]
 
-Special thanks to guys from Addditive for 3d-printing!
+Special thanks to guys from [Addditive](https://www.facebook.com/addditive) for 3d-printing!
 
 Zero version of the clock:
 ![Image 1][img1]
