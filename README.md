@@ -1,6 +1,11 @@
 # p-clock
 Pomodoro-like LED clock based on 2812 chip
 
+Current version:
+![Image 0][img0]
+
+Special thanks to guys from Addditive for 3d-printing!
+
 Zero version of the clock:
 ![Image 1][img1]
 ![Image 2][img2]
@@ -12,6 +17,7 @@ Zero version of the clock:
 
 Version 1.0 in progress...
 
+[img0]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_4920.JPG "IMG0"
 [img1]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_1836.JPG "IMG1"
 [img2]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_1867.JPG "IMG2"
 [img3]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_1868.JPG "IMG3"
