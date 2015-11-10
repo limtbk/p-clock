@@ -8,24 +8,77 @@
 #include "ws2812.h"
 #include <avr/pgmspace.h>
 
+#define send_bytesm(port__, ddr__, pin__, portnum__, source__) \
+			uint8_t __bitcnt__ = 8;\
+			asm volatile (\
+				"	ldi		%[bitcnt],8"			"\n\t"\
+				"btloop%=:"							"\n\t"\
+				"	sbi		%[port],%[nn]"			"\n\t"\
+				"	nop"							"\n\t"\
+				"	rol		%[byte]"				"\n\t"\
+				"	brcs	bit1%="					"\n\t"\
+				"	cbi		%[port],%[nn]"			"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	rjmp	bit0%="					"\n\t"\
+				"bit1%=:"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"bit0%=:"							"\n\t"\
+				"	cbi		%[port],%[nn]"			"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	nop"							"\n\t"\
+				"	subi	%[bitcnt],1"			"\n\t"\
+				"	brne	btloop%="				"\n\t"\
+				::\
+				[port] "I" (_SFR_IO_ADDR(port__)),\
+				[nn] "I" (portnum__),\
+				[bitcnt] "d" (__bitcnt__),\
+				[byte] "r" (source__)\
+			)
+
+#define send_bytes(port, source) send_bytesm(port, source)
+
 const uint16_t PROGMEM numfnt [] = {
-	0b0111010001011100,
-	0b1000011111100100,
-	0b1001010101110010,
-	0b0101110101100010,
-	0b1111100100001110,
-	0b0100110101101110,
-	0b0100010101011100,
-	0b0001111101000010,
-	0b0101010101010100,
-	0b0111010101000100,
-	0b1111000101111100,
-	0b0101010101111110,
-	0b1000110001011100,
-	0b0111010001111110,
-	0b0111010001111110,
-	0b1000110101111110,
-	0b0000100101111110
+	0b1111110001111110, //0
+	0b1111100000000000, //1
+	0b1011110101111010, //2
+	0b1111110101101010, //3
+	0b1111100100001110, //4
+	0b1110110101101110, //5
+	0b1110110101111110, //6
+	0b1111100001000010, //7
+	0b1111110101111110, //8
+	0b1111110101101110, //9
+	0b1111000101111100, //A
+	0b0101010101111110, //B
+	0b1000110001011100, //C
+	0b0111010001111110, //D
+	0b0111010001111110, //E
+	0b1000110101111110, //F
+	0b0000100101111110, //G
+	0b0111010001011100, //0
+	0b1000011111100100, //1
+	0b1001010101110010, //2
+	0b0101110101100010, //3
+	0b1111100100001110, //4
+	0b0100110101101110, //5
+	0b0100010101011100, //6
+	0b0001111101000010, //7
+	0b0101010101010100, //8
+	0b0111010101000100, //9
+	0b1111000101111100, //A
+	0b0101010101111110, //B
+	0b1000110001011100, //C
+	0b0111010001111110, //D
+	0b0111010001111110, //E
+	0b1000110101111110, //F
+	0b0000100101111110  //G
 };
 
 void setnum(uint8_t pos, uint8_t num) {
@@ -48,219 +101,27 @@ void refresh() { //TODO make all loop at asm, optimize nop with jp
 	cli();
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+0];
-		uint8_t bc = 8;
-		asm volatile (
-				"	ldi		%[bitcnt],8"			"\n\t"
-				"btloop%=:"							"\n\t"
-				"	sbi		%[port],%[nn]"			"\n\t" //PORT=1
-				"	nop"							"\n\t"
-				"	rol		%[byte]"				"\n\t"
-				"	brcs	bit1%="					"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	rjmp	bit0%="					"\n\t"
-				"bit1%=:"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"bit0%=:"							"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	subi	%[bitcnt],1"			"\n\t"
-				"	brne	btloop%="				"\n\t"
-				::
-				[port] "I" (_SFR_IO_ADDR(PORT(LED_CTRL0))),
-				[nn] "I" (PORTN(LED_CTRL0)),
-				[bitcnt] "d" (bc),
-				[byte] "r" (ibyte)
-
-		);
+		send_bytes(LED_CTRL0, ibyte);
 	}
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+15*3];
-		uint8_t bc = 8;
-		asm volatile (
-				"	ldi		%[bitcnt],8"			"\n\t"
-				"btloop%=:"							"\n\t"
-				"	sbi		%[port],%[nn]"			"\n\t" //PORT=1
-				"	nop"							"\n\t"
-				"	rol		%[byte]"				"\n\t"
-				"	brcs	bit1%="					"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	rjmp	bit0%="					"\n\t"
-				"bit1%=:"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"bit0%=:"							"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	subi	%[bitcnt],1"			"\n\t"
-				"	brne	btloop%="				"\n\t"
-				::
-				[port] "I" (_SFR_IO_ADDR(PORT(LED_CTRL1))),
-				[nn] "I" (PORTN(LED_CTRL1)),
-				[bitcnt] "d" (bc),
-				[byte] "r" (ibyte)
-
-		);
+		send_bytes(LED_CTRL1, ibyte);
 	}
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+30*3];
-		uint8_t bc = 8;
-		asm volatile (
-				"	ldi		%[bitcnt],8"			"\n\t"
-				"btloop%=:"							"\n\t"
-				"	sbi		%[port],%[nn]"			"\n\t" //PORT=1
-				"	nop"							"\n\t"
-				"	rol		%[byte]"				"\n\t"
-				"	brcs	bit1%="					"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	rjmp	bit0%="					"\n\t"
-				"bit1%=:"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"bit0%=:"							"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	subi	%[bitcnt],1"			"\n\t"
-				"	brne	btloop%="				"\n\t"
-				::
-				[port] "I" (_SFR_IO_ADDR(PORT(LED_CTRL2))),
-				[nn] "I" (PORTN(LED_CTRL2)),
-				[bitcnt] "d" (bc),
-				[byte] "r" (ibyte)
-
-		);
+		send_bytes(LED_CTRL2, ibyte);
 	}
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+45*3];
-		uint8_t bc = 8;
-		asm volatile (
-				"	ldi		%[bitcnt],8"			"\n\t"
-				"btloop%=:"							"\n\t"
-				"	sbi		%[port],%[nn]"			"\n\t" //PORT=1
-				"	nop"							"\n\t"
-				"	rol		%[byte]"				"\n\t"
-				"	brcs	bit1%="					"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	rjmp	bit0%="					"\n\t"
-				"bit1%=:"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"bit0%=:"							"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	subi	%[bitcnt],1"			"\n\t"
-				"	brne	btloop%="				"\n\t"
-				::
-				[port] "I" (_SFR_IO_ADDR(PORT(LED_CTRL3))),
-				[nn] "I" (PORTN(LED_CTRL3)),
-				[bitcnt] "d" (bc),
-				[byte] "r" (ibyte)
-
-		);
+		send_bytes(LED_CTRL3, ibyte);
 	}
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+60*3];
-		uint8_t bc = 8;
-		asm volatile (
-				"	ldi		%[bitcnt],8"			"\n\t"
-				"btloop%=:"							"\n\t"
-				"	sbi		%[port],%[nn]"			"\n\t" //PORT=1
-				"	nop"							"\n\t"
-				"	rol		%[byte]"				"\n\t"
-				"	brcs	bit1%="					"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	rjmp	bit0%="					"\n\t"
-				"bit1%=:"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"bit0%=:"							"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	subi	%[bitcnt],1"			"\n\t"
-				"	brne	btloop%="				"\n\t"
-				::
-				[port] "I" (_SFR_IO_ADDR(PORT(LED_CTRL4))),
-				[nn] "I" (PORTN(LED_CTRL4)),
-				[bitcnt] "d" (bc),
-				[byte] "r" (ibyte)
-
-		);
+		send_bytes(LED_CTRL4, ibyte);
 	}
-	for (uint8_t i = 0; i<5*3*3; i++) {
+	for (uint8_t i = 0; i<5*2*3; i++) {
 		uint8_t ibyte = current_pixels[i+75*3];
-		uint8_t bc = 8;
-		asm volatile (
-				"	ldi		%[bitcnt],8"			"\n\t"
-				"btloop%=:"							"\n\t"
-				"	sbi		%[port],%[nn]"			"\n\t" //PORT=1
-				"	nop"							"\n\t"
-				"	rol		%[byte]"				"\n\t"
-				"	brcs	bit1%="					"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	rjmp	bit0%="					"\n\t"
-				"bit1%=:"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"bit0%=:"							"\n\t"
-				"	cbi		%[port],%[nn]"			"\n\t" //PORT=0
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	nop"							"\n\t"
-				"	subi	%[bitcnt],1"			"\n\t"
-				"	brne	btloop%="				"\n\t"
-				::
-				[port] "I" (_SFR_IO_ADDR(PORT(LED_CTRL5))),
-				[nn] "I" (PORTN(LED_CTRL5)),
-				[bitcnt] "d" (bc),
-				[byte] "r" (ibyte)
-
-		);
+		send_bytes(LED_CTRL5, ibyte);
 	}
 	sei();
 }
