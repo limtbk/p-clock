@@ -8,6 +8,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "ports.h"
 #include "macro.h"
 #include "usart.h"
@@ -17,7 +18,9 @@
 
 #define SND PORT_D2
 
-#define DS3231_IN32KHZ PORT_C3
+#define DS3231_IN32KHZ PORT_C3 //PCINT11
+#define DS3231_INSQW PORT_D4 //PCINT20
+#define DS3231_RST PORT_D3
 
 #define HC4052_A PORT_C2
 #define HC4052_B PORT_C1
@@ -78,47 +81,119 @@ void init() {
 	SETD(HC4052_INH);
 	CLRP(HC4052_INH);
 
+	SETP(DS3231_IN32KHZ); //set pull-up resistor
+	CLRD(DS3231_IN32KHZ);
+	SETP(DS3231_INSQW); //set pull-up resistor
+	CLRD(DS3231_INSQW);
+	SETP(DS3231_RST);
+	SETD(DS3231_RST);
+
 	clrscr();
 	refresh();
 
-//	for (uint8_t i = 0; i < P_TOTAL; i++) {
-//		pattern[i*3+0] = 0; //G
-//		pattern[i*3+1] = 0; //R
-//		pattern[i*3+2] = 0; //B
-//	}
-
 	for (uint8_t i = 0; i < P_TOTAL; i++) {
-		uint8_t x = i % 5;
-		uint8_t y = i / 5;
-		if (x<2) {
-			pattern[i*3+0] = 3; //G
-			pattern[i*3+1] = 10; //R
-			pattern[i*3+2] = 0; //B
-		} else if (x>2) {
-			pattern[i*3+0] = 0; //G
-			pattern[i*3+1] = 0; //R
-			pattern[i*3+2] = 4; //B
-		} else if (y%2) {
-			pattern[i*3+0] = 3; //G
-			pattern[i*3+1] = 10; //R
-			pattern[i*3+2] = 4; //B
-		} else {
-			pattern[i*3+0] = 3; //G
-			pattern[i*3+1] = 10; //R
-			pattern[i*3+2] = 4; //B
-		}
+		pattern[i*3+0] = rand() % 16; //G
+		pattern[i*3+1] = rand() % 16; //R
+		pattern[i*3+2] = rand() % 16; //B
 	}
+
+//	for (uint8_t i = 0; i < P_TOTAL; i++) {
+//		uint8_t x = i % 5;
+//		uint8_t y = i / 5;
+//		if (x<2) {
+//			pattern[i*3+0] = 3; //G
+//			pattern[i*3+1] = 10; //R
+//			pattern[i*3+2] = 0; //B
+//		} else if (x>2) {
+//			pattern[i*3+0] = 0; //G
+//			pattern[i*3+1] = 0; //R
+//			pattern[i*3+2] = 4; //B
+//		} else if (y%2) {
+//			pattern[i*3+0] = 3; //G
+//			pattern[i*3+1] = 10; //R
+//			pattern[i*3+2] = 4; //B
+//		} else {
+//			pattern[i*3+0] = 3; //G
+//			pattern[i*3+1] = 10; //R
+//			pattern[i*3+2] = 4; //B
+//		}
+//	}
 
 	usart_printstr("\n\rp-clock\n\r");
 
 //	pattern[0*3+1] = 255;
 
-//	ds3231_settime(ttime(02, 50, 40), 0);
-//	ds3231_setdate(tdate(2, 4, 11, 15), 0);
+//	ds3231_settime(ttime(12, 58, 30), 0);
+//	ds3231_setdate(tdate(2, 11, 11, 15), 0);
+}
+
+void handle_uart() {
+	char ch = usart_getchr();
+	switch (ch) {
+		case 'h':
+			{
+				usart_printstr("help");
+				usart_printstr("\n\r"
+						"h - help\n\r"
+						"txxxxxx - set time\n\r"
+						"wxx - set worktime\n\r"
+						"rxx - set resttime\n\r"
+						"mx - mode\n\r"
+						"s - start work\n\r"
+						"a - start rest\n\r"
+//						"fxxxx - set fade delay\n\r"
+//						"cyxxxxxx - set color for k\n\r"
+						);
+				break;
+			}
+		case 't':
+			{
+				usart_printstr("time");
+				uint8_t hours = usart_hextochar(usart_getchr())*10;
+				hours += usart_hextochar(usart_getchr());
+				usart_printhex(hours);
+				uint8_t minutes = usart_hextochar(usart_getchr())*10;
+				minutes += usart_hextochar(usart_getchr());
+				usart_printhex(minutes);
+				uint8_t seconds = usart_hextochar(usart_getchr())*10;
+				seconds += usart_hextochar(usart_getchr());
+				usart_printhex(seconds);
+				TTime time = ttime(hours, minutes, seconds);
+				ds3231_settime(time, 0);
+				break;
+			}
+		default:
+			break;
+	}
+	usart_printstr("\n\rok\n\r");
 }
 
 void loop() {
 	clrscr();
+
+	if (usart_chrready()) {
+		handle_uart();
+	}
+//	for (uint8_t i = 0; i < P_TOTAL; i++) {
+//		pattern[i*3+0] = rand() % 16; //G
+//		pattern[i*3+1] = rand() % 16; //R
+//		pattern[i*3+2] = rand() % 16; //B
+//	}
+
+//	//shift left
+//	for (uint8_t y = 0; y < P_HEIGHT; y++) {
+//		uint8_t tmp0 = pattern[(y * P_HEIGHT + 0) * 3 + 0];
+//		uint8_t tmp1 = pattern[(y * P_HEIGHT + 0) * 3 + 1];
+//		uint8_t tmp2 = pattern[(y * P_HEIGHT + 0) * 3 + 2];
+//
+//		for (uint8_t x = 1; x < P_WIDTH; x++) {
+//			pattern[(y * P_HEIGHT + x - 1) * 3 + 0] = pattern[(y * P_HEIGHT + x) * 3 + 0];
+//		}
+//		pattern[(y * P_HEIGHT + P_WIDTH - 1) * 3 + 0] = tmp0;
+//		pattern[(y * P_HEIGHT + P_WIDTH - 1) * 3 + 1] = tmp1;
+//		pattern[(y * P_HEIGHT + P_WIDTH - 1) * 3 + 2] = tmp2;
+//	}
+
 
 	TTime time;
 	TDate date;
@@ -140,17 +215,17 @@ void loop() {
 	current_pixels[8*5*3+(sec%15)] = sec;
 
 	refresh();
-//	uint8_t tmp0 = pattern[0*3+0];
-//	uint8_t tmp1 = pattern[0*3+1];
-//	uint8_t tmp2 = pattern[0*3+2];
-//	for (uint8_t i = 0; i < P_TOTAL; i++) {
-//		pattern[i*3+0] = pattern[(i+1)*3+0];
-//		pattern[i*3+1] = pattern[(i+1)*3+1];
-//		pattern[i*3+2] = pattern[(i+1)*3+2];
-//	}
-//	pattern[84*3+0] = tmp0;
-//	pattern[84*3+1] = tmp1;
-//	pattern[84*3+2] = tmp2;
+	uint8_t tmp0 = pattern[0*3+0];
+	uint8_t tmp1 = pattern[0*3+1];
+	uint8_t tmp2 = pattern[0*3+2];
+	for (uint8_t i = 0; i < P_TOTAL; i++) {
+		pattern[i*3+0] = pattern[(i+1)*3+0];
+		pattern[i*3+1] = pattern[(i+1)*3+1];
+		pattern[i*3+2] = pattern[(i+1)*3+2];
+	}
+	pattern[84*3+0] = tmp0;
+	pattern[84*3+1] = tmp1;
+	pattern[84*3+2] = tmp2;
 }
 
 int main(void)
