@@ -91,10 +91,15 @@ void init() {
 	clrscr();
 	refresh();
 
+//	for (uint8_t i = 0; i < P_TOTAL; i++) {
+//		pattern[i*3+0] = rand() % 16; //G
+//		pattern[i*3+1] = rand() % 16; //R
+//		pattern[i*3+2] = rand() % 16; //B
+//	}
 	for (uint8_t i = 0; i < P_TOTAL; i++) {
-		pattern[i*3+0] = rand() % 16; //G
-		pattern[i*3+1] = rand() % 16; //R
-		pattern[i*3+2] = rand() % 16; //B
+		pattern[i*3+0] = (i<P_TOTAL/3)?16:0; //G
+		pattern[i*3+1] = (i>=P_TOTAL/3 && i<2*P_TOTAL/3)?16:0; //R
+		pattern[i*3+2] = i>=2*P_TOTAL/3?16:0; //B
 	}
 
 //	for (uint8_t i = 0; i < P_TOTAL; i++) {
@@ -212,7 +217,11 @@ void loop() {
 	setnum(3, (time.hour & 0xF0) >> 4);
 
 	uint8_t sec = dectobin(time.sec);
-	current_pixels[8*5*3+(sec%15)] = sec;
+	for (uint8_t i = 0; i < P_HEIGHT; i++) {
+		current_pixels[(8*5+i)*3+0] = ((sec+i*12+0)%60)/10;
+		current_pixels[(8*5+i)*3+1] = ((sec+i*12+20)%60)/10;
+		current_pixels[(8*5+i)*3+2] = ((sec+i*12+40)%60)/10;
+	}
 
 	refresh();
 	uint8_t tmp0 = pattern[0*3+0];
