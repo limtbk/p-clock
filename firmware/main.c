@@ -57,6 +57,60 @@ ISR(TIMER1_COMPA_vect)
 {
 }
 
+void hsvToGrb(uint8_t *hsv, uint8_t *grb) {
+	uint8_t h = hsv[0];
+	uint8_t s = hsv[1];
+	uint8_t v = hsv[2];
+
+	uint8_t r = 0;
+	uint8_t g = 0;
+	uint8_t b = 0;
+
+	if (s > 0) {
+		uint8_t chroma = (uint8_t)((uint16_t)(v*s)/255);
+		switch (h) {
+			case 0 ... 43:
+				r = chroma;
+				g = (chroma * h) / 43;
+				break;
+			case 44 ... 85:
+				r = (chroma * (85-h)) / 42;
+				g = chroma;
+				break;
+			case 86 ... 128:
+				g = chroma;
+				b = (chroma * (h-86)) / 43;
+				break;
+			case 129 ... 171:
+				g = (chroma * (171-h)) / 43;
+				b = chroma;
+				break;
+			case 172 ... 213:
+				r = (chroma * (h-172)) / 42;
+				b = chroma;
+				break;
+			case 214 ... 255:
+				r = chroma;
+				b = (chroma * (255-h)) / 43;
+				break;
+			default:
+				break;
+		}
+
+		uint8_t m = v - chroma;
+		r += m;
+		g += m;
+		b += m;
+	} else {
+		r = v;
+		g = v;
+		b = v;
+	}
+	grb[1] = r;
+	grb[0] = g;
+	grb[2] = b;
+}
+
 void init() {
 	usart_init();
 	i2c_init();
@@ -88,18 +142,20 @@ void init() {
 	SETP(DS3231_RST);
 	SETD(DS3231_RST);
 
+	SETD(SND);
+
 	clrscr();
 	refresh();
 
-//	for (uint8_t i = 0; i < P_TOTAL; i++) {
+	for (uint8_t i = 0; i < P_TOTAL; i++) {
+		uint8_t hsv[3] = {(i*255)/P_TOTAL, 255, 16};
+		hsvToGrb(hsv, &(pattern[i*3]));
+//		pattern[i*3+0] = 16; //G
+//		pattern[i*3+1] = 32; //R
+//		pattern[i*3+2] = 2; //B
 //		pattern[i*3+0] = rand() % 16; //G
 //		pattern[i*3+1] = rand() % 16; //R
 //		pattern[i*3+2] = rand() % 16; //B
-//	}
-	for (uint8_t i = 0; i < P_TOTAL; i++) {
-		pattern[i*3+0] = (i<P_TOTAL/3)?16:0; //G
-		pattern[i*3+1] = (i>=P_TOTAL/3 && i<2*P_TOTAL/3)?16:0; //R
-		pattern[i*3+2] = i>=2*P_TOTAL/3?16:0; //B
 	}
 
 //	for (uint8_t i = 0; i < P_TOTAL; i++) {
@@ -174,6 +230,9 @@ void handle_uart() {
 }
 
 void loop() {
+//	INVP(SND);
+	static uint8_t tt = 0;
+	tt++;
 	clrscr();
 
 	if (usart_chrready()) {
@@ -217,13 +276,18 @@ void loop() {
 	setnum(3, (time.hour & 0xF0) >> 4);
 
 	uint8_t sec = dectobin(time.sec);
-	for (uint8_t i = 0; i < P_HEIGHT; i++) {
-		current_pixels[(8*5+i)*3+0] = ((sec+i*12+0)%60)/10;
-		current_pixels[(8*5+i)*3+1] = ((sec+i*12+20)%60)/10;
-		current_pixels[(8*5+i)*3+2] = ((sec+i*12+40)%60)/10;
-	}
+	current_pixels[(8*5+sec/12)*3+0] = (sec & 1) ? 16 : 0;
+	current_pixels[(8*5+sec/12)*3+1] = (sec & 2) ? 16 : 0;
+	current_pixels[(8*5+sec/12)*3+2] = (sec & 4) ? 16 : 0;
+
+//	uint8_t i = rand() % P_TOTAL;
+//	uint8_t c = rand() % 7 + 1;
+//	current_pixels[i*3+0] = (c & 1) ? 255 : 0;
+//	current_pixels[i*3+1] = (c & 2) ? 255 : 0;
+//	current_pixels[i*3+2] = (c & 4) ? 255 : 0;
 
 	refresh();
+	if ((tt&15) == 1) {
 	uint8_t tmp0 = pattern[0*3+0];
 	uint8_t tmp1 = pattern[0*3+1];
 	uint8_t tmp2 = pattern[0*3+2];
@@ -235,6 +299,13 @@ void loop() {
 	pattern[84*3+0] = tmp0;
 	pattern[84*3+1] = tmp1;
 	pattern[84*3+2] = tmp2;
+	}
+
+//	i = rand() % P_TOTAL;
+//	c = rand() % 7 + 1;
+//	pattern[i*3+0] = (c & 1) ? 16 : 0;
+//	pattern[i*3+1] = (c & 2) ? 16 : 0;
+//	pattern[i*3+2] = (c & 4) ? 16 : 0;
 }
 
 int main(void)
