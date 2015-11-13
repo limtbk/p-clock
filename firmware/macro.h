@@ -17,5 +17,13 @@
 #define outb(addr, data) addr = (data)
 #define inb(addr) (addr)
 #define bit(var,bit) ((((var)&(1<<(bit)))!=0)?1:0)
+#define max(a,b) \
+	({ __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b; })
+#define min(a,b) \
+	({ __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b; })
 
 #endif /* MACRO_H_ */
