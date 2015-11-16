@@ -67,12 +67,23 @@ ISR(PCINT0_vect) {
 }
 
 ISR(PCINT1_vect) {
-	static uint16_t t = 0;
+	static uint32_t t = 0;
+	static uint8_t s = 0;
+
 	t++;
-	if (t == 32768) {
+	if (s != cSt.time.sec) {
+		s = cSt.time.sec;
+//		usart_printhex(t>>24);
+//		usart_printhex(t>>16);
+//		usart_printhex(t>>8);
+//		usart_printhex(t);
+//		usart_printstr("\n\r");
 		t = 0;
-//		usart_putchr('1');
 	}
+//	if (t == 32768) {
+//		t = 0;
+////		usart_putchr('1');
+//	}
 }
 
 ISR(PCINT2_vect) {
@@ -243,7 +254,22 @@ void handle_uart() {
 				usart_printhex(cSt.mode);
 				break;
 			}
-
+		case 'w':
+			{
+				usart_printstr("worktime");
+				cSt.workTimeMinutes = usart_hextochar(usart_getchr())*10;
+				cSt.workTimeMinutes += usart_hextochar(usart_getchr());
+				usart_printhex(cSt.workTimeMinutes);
+				break;
+			}
+		case 'r':
+			{
+				usart_printstr("resttime");
+				cSt.restTimeMinutes = usart_hextochar(usart_getchr())*10;
+				cSt.restTimeMinutes += usart_hextochar(usart_getchr());
+				usart_printhex(cSt.restTimeMinutes);
+				break;
+			}
 
 		default:
 			break;
@@ -300,7 +326,6 @@ void showyear() {
 	setnum(2, 0);
 	setnum(3, 2);
 }
-
 
 void showwork() {
 	int16_t ttime = timetoseconds(cSt.time);
