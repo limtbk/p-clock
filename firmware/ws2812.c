@@ -103,26 +103,91 @@ void refresh() { //TODO make all loop at asm, optimize nop with jp
 		uint8_t ibyte = current_pixels[i+0];
 		send_bytes(LED_CTRL0, ibyte);
 	}
+	sei();
+	cli();
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+15*3];
 		send_bytes(LED_CTRL1, ibyte);
 	}
+	sei();
+	cli();
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+30*3];
 		send_bytes(LED_CTRL2, ibyte);
 	}
+	sei();
+	cli();
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+45*3];
 		send_bytes(LED_CTRL3, ibyte);
 	}
+	sei();
+	cli();
 	for (uint8_t i = 0; i<5*3*3; i++) {
 		uint8_t ibyte = current_pixels[i+60*3];
 		send_bytes(LED_CTRL4, ibyte);
 	}
+	sei();
+	cli();
 	for (uint8_t i = 0; i<5*2*3; i++) {
 		uint8_t ibyte = current_pixels[i+75*3];
 		send_bytes(LED_CTRL5, ibyte);
 	}
 	sei();
 }
+
+void hsvToGrb(uint8_t *hsv, uint8_t *grb) {
+	uint8_t h = hsv[0];
+	uint8_t s = hsv[1];
+	uint8_t v = hsv[2];
+
+	uint8_t r = 0;
+	uint8_t g = 0;
+	uint8_t b = 0;
+
+	if (s > 0) {
+		uint8_t chroma = (uint8_t)((uint16_t)(v*s)/255);
+		switch (h) {
+			case 0 ... 43:
+				r = chroma;
+				g = (chroma * h) / 43;
+				break;
+			case 44 ... 85:
+				r = (chroma * (85-h)) / 42;
+				g = chroma;
+				break;
+			case 86 ... 128:
+				g = chroma;
+				b = (chroma * (h-86)) / 43;
+				break;
+			case 129 ... 171:
+				g = (chroma * (171-h)) / 43;
+				b = chroma;
+				break;
+			case 172 ... 213:
+				r = (chroma * (h-172)) / 42;
+				b = chroma;
+				break;
+			case 214 ... 255:
+				r = chroma;
+				b = (chroma * (255-h)) / 43;
+				break;
+			default:
+				break;
+		}
+
+		uint8_t m = v - chroma;
+		r += m;
+		g += m;
+		b += m;
+	} else {
+		r = v;
+		g = v;
+		b = v;
+	}
+	grb[1] = r;
+	grb[0] = g;
+	grb[2] = b;
+}
+
 

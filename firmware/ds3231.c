@@ -188,3 +188,17 @@ uint8_t bintodec(uint8_t bin) {
 	uint8_t dec = (bin % 10) + (((bin / 10) % 10) * 16);
 	return dec;
 }
+
+uint16_t timetoseconds(TTime time) {
+	int16_t result = dectobin(time.sec) + dectobin(time.min)*60 + dectobin(time.hour)*3600;
+	return result;
+}
+
+void secondstotime(uint16_t seconds, TTime *time) {
+	uint8_t sec = seconds % 60;
+	uint8_t min = (seconds / 60) % 60;
+	uint8_t hour = seconds / 3600;
+	time->sec = bintodec(sec);
+	time->min = bintodec(min);
+	time->hour = bintodec(hour);
+}

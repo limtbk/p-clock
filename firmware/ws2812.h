@@ -34,5 +34,6 @@ uint8_t new_pixels[P_TOTAL*3];
 uint8_t pattern[P_TOTAL*3];
 
 void setnum(uint8_t pos, uint8_t num);
+void hsvToGrb(uint8_t *hsv, uint8_t *grb);
 
 #endif /* WS2812_H_ */

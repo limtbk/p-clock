@@ -18,13 +18,26 @@
 
 #define SND PORT_D2
 
-#define DS3231_IN32KHZ PORT_C3 //PCINT11
-#define DS3231_INSQW PORT_D4 //PCINT20
+#define DS3231_IN32KHZ PORT_C3 //PCINT11 on PCIE1
+#define DS3231_INSQW PORT_D4 //PCINT20 on PCIE2
 #define DS3231_RST PORT_D3
 
 #define HC4052_A PORT_C2
 #define HC4052_B PORT_C1
 #define HC4052_INH PORT_C0
+
+typedef struct ClockStatusStruct {
+	uint8_t mode;
+	uint8_t bkmode;
+	TTime time;
+	TDate date;
+	TTime workTimeStart;
+	TTime restTimeStart;
+	uint8_t workTimeMinutes;
+	uint8_t restTimeMinutes;
+} TClockStatus;
+
+TClockStatus cSt;
 
 void clrscr() {
 	for (uint8_t i = 0; i<P_TOTAL*3; i++) {
@@ -32,18 +45,6 @@ void clrscr() {
 		current_pixels[i] = 0;
 	}
 }
-
-//void gotocurrent() {
-//	for (uint8_t i = 0; i<54*3; i++) {
-//		if (current[i]<pixels[i]) {
-//			current[i] = current[i] + 1;
-//			finished = 0;
-//		} else if (current[i]>pixels[i]) {
-//			current[i] = current[i] - 1;
-//			finished = 0;
-//		}
-//	}
-//}
 
 void initTimer()
 {
@@ -57,64 +58,35 @@ ISR(TIMER1_COMPA_vect)
 {
 }
 
-void hsvToGrb(uint8_t *hsv, uint8_t *grb) {
-	uint8_t h = hsv[0];
-	uint8_t s = hsv[1];
-	uint8_t v = hsv[2];
-
-	uint8_t r = 0;
-	uint8_t g = 0;
-	uint8_t b = 0;
-
-	if (s > 0) {
-		uint8_t chroma = (uint8_t)((uint16_t)(v*s)/255);
-		switch (h) {
-			case 0 ... 43:
-				r = chroma;
-				g = (chroma * h) / 43;
-				break;
-			case 44 ... 85:
-				r = (chroma * (85-h)) / 42;
-				g = chroma;
-				break;
-			case 86 ... 128:
-				g = chroma;
-				b = (chroma * (h-86)) / 43;
-				break;
-			case 129 ... 171:
-				g = (chroma * (171-h)) / 43;
-				b = chroma;
-				break;
-			case 172 ... 213:
-				r = (chroma * (h-172)) / 42;
-				b = chroma;
-				break;
-			case 214 ... 255:
-				r = chroma;
-				b = (chroma * (255-h)) / 43;
-				break;
-			default:
-				break;
-		}
-
-		uint8_t m = v - chroma;
-		r += m;
-		g += m;
-		b += m;
-	} else {
-		r = v;
-		g = v;
-		b = v;
+ISR(PCINT0_vect) {
+	static uint16_t t = 0;
+	t++;
+	if (t == 0) {
+//		usart_putchr('0');
 	}
-	grb[1] = r;
-	grb[0] = g;
-	grb[2] = b;
+}
+
+ISR(PCINT1_vect) {
+	static uint16_t t = 0;
+	t++;
+	if (t == 32768) {
+		t = 0;
+//		usart_putchr('1');
+	}
+}
+
+ISR(PCINT2_vect) {
+	static uint16_t t = 0;
+	t++;
+	if (t == 0) {
+//		usart_putchr('2');
+	}
 }
 
 void init() {
 	usart_init();
 	i2c_init();
-	initTimer();
+//	initTimer();
 	SETD(LED_CTRL0);
 	CLRP(LED_CTRL0);
 	SETD(LED_CTRL1);
@@ -144,48 +116,43 @@ void init() {
 
 	SETD(SND);
 
+	PCICR |= bv(PCIE1) | bv(PCIE2);
+	PCMSK1 |= bv(PCINT11);
+	PCMSK2 |= bv(PCINT20);
+
 	clrscr();
 	refresh();
 
 	for (uint8_t i = 0; i < P_TOTAL; i++) {
 		uint8_t hsv[3] = {(i*255)/P_TOTAL, 255, 16};
 		hsvToGrb(hsv, &(pattern[i*3]));
-//		pattern[i*3+0] = 16; //G
-//		pattern[i*3+1] = 32; //R
-//		pattern[i*3+2] = 2; //B
-//		pattern[i*3+0] = rand() % 16; //G
-//		pattern[i*3+1] = rand() % 16; //R
-//		pattern[i*3+2] = rand() % 16; //B
 	}
 
-//	for (uint8_t i = 0; i < P_TOTAL; i++) {
-//		uint8_t x = i % 5;
-//		uint8_t y = i / 5;
-//		if (x<2) {
-//			pattern[i*3+0] = 3; //G
-//			pattern[i*3+1] = 10; //R
-//			pattern[i*3+2] = 0; //B
-//		} else if (x>2) {
-//			pattern[i*3+0] = 0; //G
-//			pattern[i*3+1] = 0; //R
-//			pattern[i*3+2] = 4; //B
-//		} else if (y%2) {
-//			pattern[i*3+0] = 3; //G
-//			pattern[i*3+1] = 10; //R
-//			pattern[i*3+2] = 4; //B
-//		} else {
-//			pattern[i*3+0] = 3; //G
-//			pattern[i*3+1] = 10; //R
-//			pattern[i*3+2] = 4; //B
-//		}
-//	}
+	cSt.mode = 0;
+	cSt.bkmode = 0;
+	cSt.workTimeMinutes = 45;
+	cSt.restTimeMinutes = 5;
 
 	usart_printstr("\n\rp-clock\n\r");
+}
 
-//	pattern[0*3+1] = 255;
+void startwork() {
+	cSt.workTimeStart.hour = cSt.time.hour;
+	cSt.workTimeStart.min = cSt.time.min;
+	cSt.workTimeStart.sec = cSt.time.sec;
+	cSt.mode = 2;
+	cSt.bkmode = 1;
+	usart_printstr("\n\rstart work\n\r");
 
-//	ds3231_settime(ttime(12, 58, 30), 0);
-//	ds3231_setdate(tdate(2, 11, 11, 15), 0);
+}
+
+void startrest() {
+	cSt.restTimeStart.hour = cSt.time.hour;
+	cSt.restTimeStart.min = cSt.time.min;
+	cSt.restTimeStart.sec = cSt.time.sec;
+	cSt.mode = 3;
+	cSt.bkmode = 2;
+	usart_printstr("\n\rstart rest\n\r");
 }
 
 void handle_uart() {
@@ -197,6 +164,7 @@ void handle_uart() {
 				usart_printstr("\n\r"
 						"h - help\n\r"
 						"txxxxxx - set time\n\r"
+						"dxxxxxx - set date\n\r"
 						"wxx - set worktime\n\r"
 						"rxx - set resttime\n\r"
 						"mx - mode\n\r"
@@ -223,10 +191,151 @@ void handle_uart() {
 				ds3231_settime(time, 0);
 				break;
 			}
+		case 'd':
+			{
+				usart_printstr("date");
+				uint8_t year = usart_hextochar(usart_getchr())*10;
+				year += usart_hextochar(usart_getchr());
+				usart_printhex(year);
+				uint8_t month = usart_hextochar(usart_getchr())*10;
+				month += usart_hextochar(usart_getchr());
+				usart_printhex(month);
+				uint8_t day = usart_hextochar(usart_getchr())*10;
+				day += usart_hextochar(usart_getchr());
+				usart_printhex(day);
+				TDate date = tdate(0, day, month, year);
+				ds3231_setdate(date, 0);
+				break;
+			}
+		case 'm':
+			{
+				usart_printstr("mode");
+				cSt.mode = usart_hextochar(usart_getchr());
+				usart_printhex(cSt.mode);
+				if (cSt.mode == 0) {
+					cSt.bkmode = 0;
+				}
+				if (cSt.mode == 1) {
+					cSt.bkmode = 0;
+				}
+				if (cSt.mode == 2) {
+					cSt.bkmode = 1;
+				}
+				if (cSt.mode == 3) {
+					cSt.bkmode = 2;
+				}
+				break;
+			}
+		case 's':
+			{
+				startwork();
+				break;
+			}
+		case 'a':
+			{
+				startrest();
+				break;
+			}
+		case 'k':
+			{
+				usart_printstr("colormode");
+				cSt.bkmode = usart_hextochar(usart_getchr());
+				usart_printhex(cSt.mode);
+				break;
+			}
+
+
 		default:
 			break;
 	}
 	usart_printstr("\n\rok\n\r");
+}
+
+void rainbowcycling() {
+	static uint8_t tt = 0;
+	tt++;
+	for (uint8_t i = 0; i < P_TOTAL; i++) {
+		uint8_t hsv[3] = {((i+tt)*255)/P_TOTAL, 255, 16};
+		hsvToGrb(hsv, &(pattern[i*3]));
+	}
+}
+
+void setbkcolor(uint8_t color) {
+	for (uint8_t i = 0; i < P_TOTAL; i++) {
+		uint8_t hsv[3] = {color, 255, 16};
+		hsvToGrb(hsv, &(pattern[i*3]));
+	}
+}
+
+void showclock() {
+	setnum(0, cSt.time.min & 0x0F);
+	setnum(1, (cSt.time.min & 0xF0) >> 4);
+	setnum(2, cSt.time.hour & 0x0F);
+	setnum(3, (cSt.time.hour & 0xF0) >> 4);
+
+	uint8_t sec = dectobin(cSt.time.sec);
+	uint8_t ss = sec % 12 + 2;
+	current_pixels[(8*5+sec/12)*3+0] = ((ss & 2) ? 16 : 0) * (ss & 1);
+	current_pixels[(8*5+sec/12)*3+1] = ((ss & 4) ? 16 : 0) * (ss & 1);
+	current_pixels[(8*5+sec/12)*3+2] = ((ss & 8) ? 16 : 0) * (ss & 1);
+}
+
+void showseconds() {
+	setnum(0, cSt.time.sec & 0x0F);
+	setnum(1, (cSt.time.sec & 0xF0) >> 4);
+	setnum(2, cSt.time.min & 0x0F);
+	setnum(3, (cSt.time.min & 0xF0) >> 4);
+}
+
+void showdate() {
+	setnum(0, cSt.date.day & 0x0F);
+	setnum(1, (cSt.date.day & 0xF0) >> 4);
+	setnum(2, cSt.date.month & 0x0F);
+	setnum(3, (cSt.date.month & 0xF0) >> 4);
+}
+
+void showyear() {
+	setnum(0, cSt.date.year & 0x0F);
+	setnum(1, (cSt.date.year & 0xF0) >> 4);
+	setnum(2, 0);
+	setnum(3, 2);
+}
+
+
+void showwork() {
+	int16_t ttime = timetoseconds(cSt.time);
+	int16_t dtime = timetoseconds(cSt.workTimeStart);
+	int16_t wtime = cSt.workTimeMinutes*60;
+
+	int16_t rtime = ttime - dtime;
+	if ((rtime<0) || (rtime>wtime)) {
+		startrest();
+	} else {
+		TTime timer;
+		secondstotime(wtime-rtime, &timer);
+		setnum(0, timer.sec & 0x0F);
+		setnum(1, (timer.sec & 0xF0) >> 4);
+		setnum(2, timer.min & 0x0F);
+		setnum(3, (timer.min & 0xF0) >> 4);
+	}
+}
+
+void showrest() {
+	int16_t ttime = timetoseconds(cSt.time);
+	int16_t dtime = timetoseconds(cSt.restTimeStart);
+	int16_t wtime = cSt.restTimeMinutes*60;
+
+	int16_t rtime = ttime - dtime;
+	if ((rtime<0) || (rtime>wtime)) {
+		startwork();
+	} else {
+		TTime timer;
+		secondstotime(wtime-rtime, &timer);
+		setnum(0, timer.sec & 0x0F);
+		setnum(1, (timer.sec & 0xF0) >> 4);
+		setnum(2, timer.min & 0x0F);
+		setnum(3, (timer.min & 0xF0) >> 4);
+	}
 }
 
 void loop() {
@@ -238,74 +347,74 @@ void loop() {
 	if (usart_chrready()) {
 		handle_uart();
 	}
-//	for (uint8_t i = 0; i < P_TOTAL; i++) {
-//		pattern[i*3+0] = rand() % 16; //G
-//		pattern[i*3+1] = rand() % 16; //R
-//		pattern[i*3+2] = rand() % 16; //B
-//	}
 
-//	//shift left
-//	for (uint8_t y = 0; y < P_HEIGHT; y++) {
-//		uint8_t tmp0 = pattern[(y * P_HEIGHT + 0) * 3 + 0];
-//		uint8_t tmp1 = pattern[(y * P_HEIGHT + 0) * 3 + 1];
-//		uint8_t tmp2 = pattern[(y * P_HEIGHT + 0) * 3 + 2];
-//
-//		for (uint8_t x = 1; x < P_WIDTH; x++) {
-//			pattern[(y * P_HEIGHT + x - 1) * 3 + 0] = pattern[(y * P_HEIGHT + x) * 3 + 0];
-//		}
-//		pattern[(y * P_HEIGHT + P_WIDTH - 1) * 3 + 0] = tmp0;
-//		pattern[(y * P_HEIGHT + P_WIDTH - 1) * 3 + 1] = tmp1;
-//		pattern[(y * P_HEIGHT + P_WIDTH - 1) * 3 + 2] = tmp2;
-//	}
+	ds3231_gettime(&cSt.time, 1);
+	ds3231_getdate(&cSt.date, 1);
 
+	switch (cSt.mode) {
+		case 0:
+			{
+				showclock();
+				break;
+			}
+		case 1:
+			{
+				showseconds();
+				break;
+			}
+		case 2:
+			{
+				showwork();
+				break;
+			}
+		case 3:
+			{
+				showrest();
+				break;
+			}
+		case 4:
+			{
+				showdate();
+				break;
+			}
+		case 5:
+			{
+				showyear();
+				break;
+			}
+		default:
+			break;
+	}
 
-	TTime time;
-	TDate date;
-
-	ds3231_gettime(&time, 1);
-	ds3231_getdate(&date, 1);
-
-//	setnum(0, time.sec & 0x0F);
-//	setnum(1, (time.sec & 0xF0) >> 4);
-//	setnum(2, time.min & 0x0F);
-//	setnum(3, (time.min & 0xF0) >> 4);
-
-	setnum(0, time.min & 0x0F);
-	setnum(1, (time.min & 0xF0) >> 4);
-	setnum(2, time.hour & 0x0F);
-	setnum(3, (time.hour & 0xF0) >> 4);
-
-	uint8_t sec = dectobin(time.sec);
-	current_pixels[(8*5+sec/12)*3+0] = (sec & 1) ? 16 : 0;
-	current_pixels[(8*5+sec/12)*3+1] = (sec & 2) ? 16 : 0;
-	current_pixels[(8*5+sec/12)*3+2] = (sec & 4) ? 16 : 0;
-
-//	uint8_t i = rand() % P_TOTAL;
-//	uint8_t c = rand() % 7 + 1;
-//	current_pixels[i*3+0] = (c & 1) ? 255 : 0;
-//	current_pixels[i*3+1] = (c & 2) ? 255 : 0;
-//	current_pixels[i*3+2] = (c & 4) ? 255 : 0;
+	switch (cSt.bkmode) {
+		case 0:
+			{
+				if ((tt&15) == 1) {
+					rainbowcycling();
+				}
+				break;
+			}
+		case 1:
+			{
+				setbkcolor(0);
+				break;
+			}
+		case 2:
+			{
+				setbkcolor(214);
+				break;
+			}
+		case 3:
+			{
+				setbkcolor(86);
+				break;
+			}
+		default:
+			break;
+	}
 
 	refresh();
-	if ((tt&15) == 1) {
-	uint8_t tmp0 = pattern[0*3+0];
-	uint8_t tmp1 = pattern[0*3+1];
-	uint8_t tmp2 = pattern[0*3+2];
-	for (uint8_t i = 0; i < P_TOTAL; i++) {
-		pattern[i*3+0] = pattern[(i+1)*3+0];
-		pattern[i*3+1] = pattern[(i+1)*3+1];
-		pattern[i*3+2] = pattern[(i+1)*3+2];
-	}
-	pattern[84*3+0] = tmp0;
-	pattern[84*3+1] = tmp1;
-	pattern[84*3+2] = tmp2;
-	}
 
-//	i = rand() % P_TOTAL;
-//	c = rand() % 7 + 1;
-//	pattern[i*3+0] = (c & 1) ? 16 : 0;
-//	pattern[i*3+1] = (c & 2) ? 16 : 0;
-//	pattern[i*3+2] = (c & 4) ? 16 : 0;
 }
 
 int main(void)

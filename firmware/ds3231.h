@@ -39,6 +39,10 @@ uint8_t ds3231_readbyte(uint8_t addr);
 uint8_t ds3231_writebyte(uint8_t addr, uint8_t byte);
 uint8_t ds3231_readbytes(uint8_t addr, void *dst, uint8_t count);
 uint8_t ds3231_writebytes(uint8_t addr, void *src, uint8_t count);
+
+uint16_t timetoseconds(TTime time);
+void secondstotime(uint16_t seconds, TTime *time);
+
 uint8_t dectobin(uint8_t dec);
 uint8_t bintodec(uint8_t bin);
 
