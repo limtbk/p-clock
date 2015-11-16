@@ -338,10 +338,17 @@ void showwork() {
 	} else {
 		TTime timer;
 		secondstotime(wtime-rtime, &timer);
-		setnum(0, timer.sec & 0x0F);
-		setnum(1, (timer.sec & 0xF0) >> 4);
-		setnum(2, timer.min & 0x0F);
-		setnum(3, (timer.min & 0xF0) >> 4);
+		if (timer.hour) {
+			setnum(0, timer.min & 0x0F);
+			setnum(1, (timer.min & 0xF0) >> 4);
+			setnum(2, timer.hour & 0x0F);
+			setnum(3, (timer.hour & 0xF0) >> 4);
+		} else {
+			setnum(0, timer.sec & 0x0F);
+			setnum(1, (timer.sec & 0xF0) >> 4);
+			setnum(2, timer.min & 0x0F);
+			setnum(3, (timer.min & 0xF0) >> 4);
+		}
 	}
 }
 
@@ -356,10 +363,18 @@ void showrest() {
 	} else {
 		TTime timer;
 		secondstotime(wtime-rtime, &timer);
-		setnum(0, timer.sec & 0x0F);
-		setnum(1, (timer.sec & 0xF0) >> 4);
-		setnum(2, timer.min & 0x0F);
-		setnum(3, (timer.min & 0xF0) >> 4);
+		if (timer.hour) {
+			setnum(0, timer.min & 0x0F);
+			setnum(1, (timer.min & 0xF0) >> 4);
+			setnum(2, timer.hour & 0x0F);
+			setnum(3, (timer.hour & 0xF0) >> 4);
+		} else {
+			setnum(0, timer.sec & 0x0F);
+			setnum(1, (timer.sec & 0xF0) >> 4);
+			setnum(2, timer.min & 0x0F);
+			setnum(3, (timer.min & 0xF0) >> 4);
+		}
+
 	}
 }
 
