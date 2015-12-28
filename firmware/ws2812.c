@@ -62,6 +62,10 @@ const uint16_t PROGMEM numfnt [] = {
 	0b0111010001111110, //E
 	0b1000110101111110, //F
 	0b0000100101111110, //G
+	0b1000000000000000, //dot
+	0b1100011100111000, //m
+	0b1001100100110010, //%
+	0b0000000011000110, //gradus
 	0b0111010001011100, //0
 	0b1000011111100100, //1
 	0b1001010101110010, //2
@@ -84,6 +88,21 @@ const uint16_t PROGMEM numfnt [] = {
 void setnum(uint8_t pos, uint8_t num) {
 	uint8_t saddr = pos*(D_TOTAL+D_HEIGHT);
 	saddr += (pos>1)?D_HEIGHT*2:0;
+	uint16_t symbit = pgm_read_word(&numfnt[num]);
+	uint8_t i = D_TOTAL;
+	while (i) {
+		uint8_t msk = (symbit&0x8000)?255:0;
+		current_pixels[saddr*3+0] = pattern[saddr*3+0]&msk;
+		current_pixels[saddr*3+1] = pattern[saddr*3+1]&msk;
+		current_pixels[saddr*3+2] = pattern[saddr*3+2]&msk;
+		symbit = symbit<<1;
+		saddr++;
+		i--;
+	}
+}
+
+void setchr(uint8_t pos, uint8_t num) {
+	uint8_t saddr = pos*(D_HEIGHT);
 	uint16_t symbit = pgm_read_word(&numfnt[num]);
 	uint8_t i = D_TOTAL;
 	while (i) {

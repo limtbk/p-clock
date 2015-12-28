@@ -15,6 +15,8 @@
 #include "i2c.h"
 #include "ds3231.h"
 #include "ws2812.h"
+#include "timer1.h"
+#include "bmp085.h"
 
 #define SND PORT_D2
 
@@ -29,12 +31,17 @@
 typedef struct ClockStatusStruct {
 	uint8_t mode;
 	uint8_t bkmode;
+	uint8_t cycling;
 	TTime time;
 	TDate date;
 	TTime workTimeStart;
 	TTime restTimeStart;
 	uint8_t workTimeMinutes;
 	uint8_t restTimeMinutes;
+	TTemperature temp0;
+	int8_t temp1;
+	int16_t pressure;
+	int8_t humidity;
 } TClockStatus;
 
 TClockStatus cSt;
@@ -46,58 +53,60 @@ void clrscr() {
 	}
 }
 
-void initTimer()
-{
-	TCCR1A = 0; //No compare
-	TCCR1B = (1<<WGM12)|(0b101<<CS10); //CTC, clk/1024
-	OCR1A = 15625+1; //16000000 / 1024 = 15625 (7812+7813)
-	TIMSK1 = (1<<OCIE1A);
-}
-
-ISR(TIMER1_COMPA_vect)
-{
-}
-
-ISR(PCINT0_vect) {
-	static uint16_t t = 0;
-	t++;
-	if (t == 0) {
-//		usart_putchr('0');
-	}
-}
-
-ISR(PCINT1_vect) {
-	static uint32_t t = 0;
-	static uint8_t s = 0;
-
-	t++;
-	if (s != cSt.time.sec) {
-		s = cSt.time.sec;
-//		usart_printhex(t>>24);
-//		usart_printhex(t>>16);
-//		usart_printhex(t>>8);
-//		usart_printhex(t);
-//		usart_printstr("\n\r");
-		t = 0;
-	}
-//	if (t == 32768) {
-//		t = 0;
-////		usart_putchr('1');
+//void initTimer()
+//{
+//	TCCR1A = 0; //No compare
+//	TCCR1B = (1<<WGM12)|(0b101<<CS10); //CTC, clk/1024
+//	OCR1A = 15625+1; //16000000 / 1024 = 15625 (7812+7813)
+//	TIMSK1 = (1<<OCIE1A);
+//}
+//
+//ISR(TIMER1_COMPA_vect)
+//{
+//}
+//
+//ISR(PCINT0_vect) {
+//	static uint16_t t = 0;
+//	t++;
+//	if (t == 0) {
+////		usart_putchr('0');
 //	}
-}
-
-ISR(PCINT2_vect) {
-	static uint16_t t = 0;
-	t++;
-	if (t == 0) {
-//		usart_putchr('2');
-	}
-}
+//}
+//
+//ISR(PCINT1_vect) {
+//	static uint32_t t = 0;
+//	static uint8_t s = 0;
+//
+//	t++;
+//	if (s != cSt.time.sec) {
+//		s = cSt.time.sec;
+////		usart_printhex(t>>24);
+////		usart_printhex(t>>16);
+////		usart_printhex(t>>8);
+////		usart_printhex(t);
+////		usart_printstr("\n\r");
+//		t = 0;
+//	}
+////	if (t == 32768) {
+////		t = 0;
+//////		usart_putchr('1');
+////	}
+//}
+//
+//ISR(PCINT2_vect) {
+//	static uint16_t t = 0;
+//	t++;
+//	if (t == 0) {
+////		usart_putchr('2');
+//	}
+//}
 
 void init() {
 	usart_init();
 	i2c_init();
 //	initTimer();
+	timer1_init();
+	bmp085_init();
 	SETD(LED_CTRL0);
 	CLRP(LED_CTRL0);
 	SETD(LED_CTRL1);
@@ -127,9 +136,9 @@ void init() {
 
 	SETD(SND);
 
-	PCICR |= bv(PCIE1) | bv(PCIE2);
-	PCMSK1 |= bv(PCINT11);
-	PCMSK2 |= bv(PCINT20);
+//	PCICR |= bv(PCIE1) | bv(PCIE2);
+//	PCMSK1 |= bv(PCINT11);
+//	PCMSK2 |= bv(PCINT20);
 
 	clrscr();
 	refresh();
@@ -143,6 +152,7 @@ void init() {
 	cSt.bkmode = 0;
 	cSt.workTimeMinutes = 45;
 	cSt.restTimeMinutes = 5;
+	cSt.cycling = 1;
 
 	usart_printstr("\n\rp-clock\n\r");
 }
@@ -179,8 +189,10 @@ void handle_uart() {
 						"wxx - set worktime\n\r"
 						"rxx - set resttime\n\r"
 						"mx - mode\n\r"
+						"kx - color mode\n\r"
 						"s - start work\n\r"
 						"a - start rest\n\r"
+						"c - cycling on/off\n\r"
 //						"fxxxx - set fade delay\n\r"
 //						"cyxxxxxx - set color for k\n\r"
 						);
@@ -270,6 +282,26 @@ void handle_uart() {
 				usart_printhex(cSt.restTimeMinutes);
 				break;
 			}
+		case 'c':
+			{
+				cSt.cycling = !cSt.cycling;
+				usart_printstr("cycling ");
+				if (cSt.cycling) {
+					usart_printstr("on");
+				} else {
+					usart_printstr("off");
+				}
+				break;
+			}
+//		case 'p':
+//			{
+//				usart_printstr("pressure is ");
+//				usart_printhex((cSt.pressure >> 24) & 0xFF);
+//				usart_printhex((cSt.pressure >> 16) & 0xFF);
+//				usart_printhex((cSt.pressure >> 8) & 0xFF);
+//				usart_printhex(cSt.pressure & 0xFF);
+//				break;
+//			}
 
 		default:
 			break;
@@ -321,10 +353,11 @@ void showdate() {
 }
 
 void showyear() {
-	setnum(0, cSt.date.year & 0x0F);
-	setnum(1, (cSt.date.year & 0xF0) >> 4);
-	setnum(2, 0);
-	setnum(3, 2);
+
+	setchr(1, cSt.date.year & 0x0F);
+	setchr(5, (cSt.date.year & 0xF0) >> 4);
+	setchr(9, 0);
+	setchr(13, 2);
 }
 
 void showwork() {
@@ -378,6 +411,34 @@ void showrest() {
 	}
 }
 
+void showtemp0() {
+	setchr(5, 20);
+	setchr(2, 12);
+	setchr(9, cSt.temp0.intPart & 0x0F);
+	setchr(13, (cSt.temp0.intPart & 0xF0) >> 4);
+}
+
+void showtemp1() {
+	setchr(5, 20);
+	setchr(2, 12);
+	setchr(9, cSt.temp1 & 0x0F);
+	setchr(13, (cSt.temp1 & 0xF0) >> 4);
+}
+
+void showpressure() {
+	setchr(1, 18);
+	setchr(5, cSt.pressure%10);
+	setchr(9, (cSt.pressure/10)%10);
+	setchr(13, (cSt.pressure/100)%10);
+}
+
+void showhumidity() {
+	setchr(1, 19);
+	setchr(5, cSt.humidity%10);
+	setchr(9, (cSt.humidity/10)%10);
+	setchr(13, (cSt.humidity/100)%10);
+}
+
 void loop() {
 //	INVP(SND);
 	static uint8_t tt = 0;
@@ -390,6 +451,55 @@ void loop() {
 
 	ds3231_gettime(&cSt.time, 1);
 	ds3231_getdate(&cSt.date, 1);
+	if (cSt.mode == 6) {
+		ds3231_gettemperature(&cSt.temp0, 1);
+	}
+	if (cSt.mode == 7) {
+		cSt.temp1 = bintodec(bmp085_gettemperature());
+	}
+	if (cSt.mode == 8) {
+		cSt.pressure = (bmp085_getpressure()*10)/1333; // Pa to mmHg
+	}
+	if (cSt.cycling) {
+		switch (dectobin(cSt.time.sec)/3) {
+			case 6:
+				{
+					cSt.mode = 7;
+					cSt.bkmode = 1;
+					break;
+				}
+			case 8:
+				{
+					cSt.mode = 8;
+					cSt.bkmode = 3;
+					break;
+				}
+			case 10:
+				{
+					cSt.mode = 9;
+					cSt.bkmode = 2;
+					break;
+				}
+			case 15:
+				{
+					cSt.mode = 4;
+					cSt.bkmode = 6;
+					break;
+				}
+			case 16:
+				{
+					cSt.mode = 5;
+					cSt.bkmode = 6;
+					break;
+				}
+			default:
+				{
+					cSt.mode = 0;
+					cSt.bkmode = 0;
+					break;
+				}
+		}
+	}
 
 	switch (cSt.mode) {
 		case 0:
@@ -422,6 +532,26 @@ void loop() {
 				showyear();
 				break;
 			}
+        case 6:
+            {
+                showtemp0();
+                break;
+            }
+        case 7:
+            {
+                showtemp1();
+                break;
+            }
+        case 8:
+            {
+                showpressure();
+                break;
+            }
+        case 9:
+            {
+                showhumidity();
+                break;
+            }
 		default:
 			break;
 	}
@@ -429,7 +559,7 @@ void loop() {
 	switch (cSt.bkmode) {
 		case 0:
 			{
-				if ((tt&15) == 1) {
+				if ((tt&7) == 1) {
 					rainbowcycling();
 				}
 				break;
@@ -447,6 +577,21 @@ void loop() {
 		case 3:
 			{
 				setbkcolor(86);
+				break;
+			}
+		case 4:
+			{
+				setbkcolor(150);
+				break;
+			}
+		case 5:
+			{
+				setbkcolor(43);
+				break;
+			}
+		case 6:
+			{
+				setbkcolor(172);
 				break;
 			}
 		default:
