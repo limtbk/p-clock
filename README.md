@@ -2,7 +2,9 @@
 Pomodoro-like LED clock based on 2812 chip
 
 Current version:
+
 [![Current p-clock](http://img.youtube.com/vi/3NTXodDyiNo/0.jpg)](https://www.youtube.com/watch?v=3NTXodDyiNo)
+
 ![Image 6][img6]
 ![Image 7][img7]
 ![Image 8][img8]
