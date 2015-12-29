@@ -17,6 +17,7 @@
 #include "ws2812.h"
 #include "timer1.h"
 #include "bmp085.h"
+#include "dht11.h"
 
 #define SND PORT_D2
 
@@ -24,14 +25,26 @@
 #define DS3231_INSQW PORT_D4 //PCINT20 on PCIE2
 #define DS3231_RST PORT_D3
 
-#define HC4052_A PORT_C2
-#define HC4052_B PORT_C1
-#define HC4052_INH PORT_C0
+typedef struct AvgInt8Struct {
+	int16_t value;
+	int8_t measures;
+	int8_t hour;
+	int8_t values[24];
+} AvgInt8;
+
+typedef struct AvgInt16Struct {
+	int32_t value;
+	int8_t measures;
+	int8_t hour;
+	int16_t values[24];
+} AvgInt16;
 
 typedef struct ClockStatusStruct {
 	uint8_t mode;
+	uint8_t mmode;
 	uint8_t bkmode;
 	uint8_t cycling;
+	uint8_t sndon;
 	TTime time;
 	TDate date;
 	TTime workTimeStart;
@@ -40,11 +53,41 @@ typedef struct ClockStatusStruct {
 	uint8_t restTimeMinutes;
 	TTemperature temp0;
 	int8_t temp1;
+	int8_t temp2;
 	int16_t pressure;
 	int8_t humidity;
+	AvgInt8 avgHummidity;
+	AvgInt8 avgTemperature;
+	AvgInt16 avgPressure;
 } TClockStatus;
 
 TClockStatus cSt;
+
+void addAvg8(AvgInt8 *avg, int8_t val) {
+	uint8_t hour = dectobin(cSt.time.hour);
+	if (hour==avg->hour) {
+		avg->value += val;
+		avg->measures++;
+	} else {
+		avg->values[avg->hour] = (avg->value / avg->measures);
+		avg->hour = hour;
+		avg->measures = 1;
+		avg->value = val;
+	}
+}
+
+void addAvg16(AvgInt16 *avg, int16_t val) {
+	uint8_t hour = dectobin(cSt.time.hour);
+	if (hour==avg->hour) {
+		avg->value += val;
+		avg->measures++;
+	} else {
+		avg->values[avg->hour] = (avg->value / avg->measures);
+		avg->hour = hour;
+		avg->measures = 1;
+		avg->value = val;
+	}
+}
 
 void clrscr() {
 	for (uint8_t i = 0; i<P_TOTAL*3; i++) {
@@ -53,18 +96,6 @@ void clrscr() {
 	}
 }
 
-//void initTimer()
-//{
-//	TCCR1A = 0; //No compare
-//	TCCR1B = (1<<WGM12)|(0b101<<CS10); //CTC, clk/1024
-//	OCR1A = 15625+1; //16000000 / 1024 = 15625 (7812+7813)
-//	TIMSK1 = (1<<OCIE1A);
-//}
-//
-//ISR(TIMER1_COMPA_vect)
-//{
-//}
-//
 //ISR(PCINT0_vect) {
 //	static uint16_t t = 0;
 //	t++;
@@ -104,7 +135,6 @@ void clrscr() {
 void init() {
 	usart_init();
 	i2c_init();
-//	initTimer();
 	timer1_init();
 	bmp085_init();
 	SETD(LED_CTRL0);
@@ -120,13 +150,6 @@ void init() {
 	SETD(LED_CTRL5);
 	CLRP(LED_CTRL5);
 
-	SETD(HC4052_A);
-	CLRP(HC4052_A);
-	SETD(HC4052_B);
-	CLRP(HC4052_B);
-	SETD(HC4052_INH);
-	CLRP(HC4052_INH);
-
 	SETP(DS3231_IN32KHZ); //set pull-up resistor
 	CLRD(DS3231_IN32KHZ);
 	SETP(DS3231_INSQW); //set pull-up resistor
@@ -135,10 +158,7 @@ void init() {
 	SETD(DS3231_RST);
 
 	SETD(SND);
-
-//	PCICR |= bv(PCIE1) | bv(PCIE2);
-//	PCMSK1 |= bv(PCINT11);
-//	PCMSK2 |= bv(PCINT20);
+	cSt.sndon = 1;
 
 	clrscr();
 	refresh();
@@ -156,6 +176,17 @@ void init() {
 
 	usart_printstr("\n\rp-clock\n\r");
 }
+
+void playsnd() {
+	//4kHz = 250us
+	if (cSt.sndon) {
+		for (uint16_t i = 0; i < 1000; i++) {
+			INVP(SND);
+			timer1_delay_us2(250);
+		}
+	}
+}
+
 
 void startwork() {
 	cSt.workTimeStart.hour = cSt.time.hour;
@@ -184,20 +215,38 @@ void handle_uart() {
 				usart_printstr("help");
 				usart_printstr("\n\r"
 						"h - help\n\r"
-						"txxxxxx - set time\n\r"
-						"dxxxxxx - set date\n\r"
-						"wxx - set worktime\n\r"
-						"rxx - set resttime\n\r"
+						"thhmmss - set time\n\r"
+						"dyymmddw - set date\n\r"
+						"wmm - set worktime\n\r"
+						"rmm - set resttime\n\r"
 						"mx - mode\n\r"
 						"kx - color mode\n\r"
 						"s - start work\n\r"
 						"a - start rest\n\r"
 						"c - cycling on/off\n\r"
-//						"fxxxx - set fade delay\n\r"
-//						"cyxxxxxx - set color for k\n\r"
+						"q - read last 24hr stats\n\r"
+						"p - play sound\n\r"
+						"o - sound on/off\n\r"
 						);
 				break;
 			}
+		case 'p':
+			{
+				playsnd();
+				break;
+			}
+		case 'o':
+			{
+				cSt.sndon = !cSt.sndon;
+				usart_printstr("sound ");
+				if (cSt.sndon) {
+					usart_printstr("on");
+				} else {
+					usart_printstr("off");
+				}
+				break;
+			}
+
 		case 't':
 			{
 				usart_printstr("time");
@@ -226,7 +275,8 @@ void handle_uart() {
 				uint8_t day = usart_hextochar(usart_getchr())*10;
 				day += usart_hextochar(usart_getchr());
 				usart_printhex(day);
-				TDate date = tdate(0, day, month, year);
+				uint8_t dow = usart_hextochar(usart_getchr());
+				TDate date = tdate(dow, day, month, year);
 				ds3231_setdate(date, 0);
 				break;
 			}
@@ -263,7 +313,7 @@ void handle_uart() {
 			{
 				usart_printstr("colormode");
 				cSt.bkmode = usart_hextochar(usart_getchr());
-				usart_printhex(cSt.mode);
+				usart_printhex(cSt.bkmode);
 				break;
 			}
 		case 'w':
@@ -293,15 +343,25 @@ void handle_uart() {
 				}
 				break;
 			}
-//		case 'p':
-//			{
-//				usart_printstr("pressure is ");
-//				usart_printhex((cSt.pressure >> 24) & 0xFF);
-//				usart_printhex((cSt.pressure >> 16) & 0xFF);
-//				usart_printhex((cSt.pressure >> 8) & 0xFF);
-//				usart_printhex(cSt.pressure & 0xFF);
-//				break;
-//			}
+		case 'q':
+			{
+				usart_printstr("\n\rtem ");
+				uint8_t hour = dectobin(cSt.time.hour);
+				for (uint8_t i = 0; i < 24; i++) {
+					usart_printhex(cSt.avgTemperature.values[(hour+i+1)%24]);
+				}
+				usart_printstr("\n\rprs ");
+				for (uint8_t i = 0; i < 24; i++) {
+					usart_printhex(cSt.avgPressure.values[(hour+i+1)%24]/256);
+					usart_printhex(cSt.avgPressure.values[(hour+i+1)%24]%256);
+				}
+				usart_printstr("\n\rhum ");
+				for (uint8_t i = 0; i < 24; i++) {
+					usart_printhex(cSt.avgHummidity.values[(hour+i+1)%24]);
+				}
+
+				break;
+			}
 
 		default:
 			break;
@@ -346,10 +406,45 @@ void showseconds() {
 }
 
 void showdate() {
-	setnum(0, cSt.date.day & 0x0F);
-	setnum(1, (cSt.date.day & 0xF0) >> 4);
-	setnum(2, cSt.date.month & 0x0F);
-	setnum(3, (cSt.date.month & 0xF0) >> 4);
+	setnum(0, cSt.date.month & 0x0F);
+	setnum(1, (cSt.date.month & 0xF0) >> 4);
+	setnum(2, cSt.date.day & 0x0F);
+	setnum(3, (cSt.date.day & 0xF0) >> 4);
+}
+
+void showdow() {
+	switch (cSt.date.weekday) {
+		case 1:
+			setchr(9, 21); //PN
+			setchr(5, 22);
+			break;
+		case 2:
+			setchr(9, 11); //VT
+			setchr(5, 23);
+			break;
+		case 3:
+			setchr(9, 12); //SR
+			setchr(5, 24);
+			break;
+		case 4:
+			setchr(9, 4); //4T
+			setchr(5, 23);
+			break;
+		case 5:
+			setchr(9, 21); //PT
+			setchr(5, 23);
+			break;
+		case 6:
+			setchr(9, 12); //SB
+			setchr(5, 25);
+			break;
+		case 7:
+			setchr(9, 11); //VS
+			setchr(5, 12);
+			break;
+		default:
+			break;
+	}
 }
 
 void showyear() {
@@ -413,16 +508,23 @@ void showrest() {
 
 void showtemp0() {
 	setchr(5, 20);
-	setchr(2, 12);
+	setchr(1, 12);
 	setchr(9, cSt.temp0.intPart & 0x0F);
 	setchr(13, (cSt.temp0.intPart & 0xF0) >> 4);
 }
 
 void showtemp1() {
 	setchr(5, 20);
-	setchr(2, 12);
+	setchr(1, 12);
 	setchr(9, cSt.temp1 & 0x0F);
 	setchr(13, (cSt.temp1 & 0xF0) >> 4);
+}
+
+void showtemp2() {
+	setchr(5, 20);
+	setchr(1, 12);
+	setchr(9, cSt.temp2 & 0x0F);
+	setchr(13, (cSt.temp2 & 0xF0) >> 4);
 }
 
 void showpressure() {
@@ -433,14 +535,19 @@ void showpressure() {
 }
 
 void showhumidity() {
-	setchr(1, 19);
-	setchr(5, cSt.humidity%10);
-	setchr(9, (cSt.humidity/10)%10);
-	setchr(13, (cSt.humidity/100)%10);
+	if ((cSt.humidity/100)%10) {
+		setchr(1, 19);
+		setchr(5, cSt.humidity%10);
+		setchr(9, (cSt.humidity/10)%10);
+		setchr(13, (cSt.humidity/100)%10);
+	} else {
+		setchr(3, 19);
+		setchr(7, cSt.humidity%10);
+		setchr(11, (cSt.humidity/10)%10);
+	}
 }
 
 void loop() {
-//	INVP(SND);
 	static uint8_t tt = 0;
 	tt++;
 	clrscr();
@@ -450,21 +557,50 @@ void loop() {
 	}
 
 	ds3231_gettime(&cSt.time, 1);
+	if ((cSt.time.min == 0) && (cSt.time.sec == 0)) {
+		playsnd();
+		timer1_delay_ms(900);
+	}
 	ds3231_getdate(&cSt.date, 1);
 	if (cSt.mode == 6) {
-		ds3231_gettemperature(&cSt.temp0, 1);
+		if (cSt.mmode != cSt.mode) {
+			ds3231_gettemperature(&cSt.temp0, 1);
+			addAvg8(&cSt.avgTemperature, dectobin(cSt.temp0.intPart));
+		}
 	}
 	if (cSt.mode == 7) {
-		cSt.temp1 = bintodec(bmp085_gettemperature());
+		if (cSt.mmode != cSt.mode) {
+			int8_t temp = bmp085_gettemperature();
+			cSt.temp1 = bintodec(temp);
+			addAvg8(&cSt.avgTemperature, temp);
+		}
 	}
 	if (cSt.mode == 8) {
-		cSt.pressure = (bmp085_getpressure()*10)/1333; // Pa to mmHg
+		if (cSt.mmode != cSt.mode) {
+			cSt.pressure = (bmp085_getpressure()*10)/1333; // Pa to mmHg
+			addAvg16(&cSt.avgPressure, cSt.pressure);
+		}
 	}
+	if (cSt.mode == 9) {
+		if (cSt.mmode != cSt.mode) {
+			cSt.humidity = dht11_gethumidity();
+			addAvg8(&cSt.avgHummidity, cSt.humidity);
+		}
+	}
+	if (cSt.mode == 10) {
+		if (cSt.mmode != cSt.mode) {
+			int8_t temp = dht11_gettemperature();
+			cSt.temp2 = bintodec(temp);
+			addAvg8(&cSt.avgTemperature, temp);
+		}
+	}
+	cSt.mmode = cSt.mode;
+
 	if (cSt.cycling) {
 		switch (dectobin(cSt.time.sec)/3) {
 			case 6:
 				{
-					cSt.mode = 7;
+					cSt.mode = 10;
 					cSt.bkmode = 1;
 					break;
 				}
@@ -480,10 +616,16 @@ void loop() {
 					cSt.bkmode = 2;
 					break;
 				}
+			case 14:
+				{
+					cSt.mode = 11;
+					cSt.bkmode = 8;
+					break;
+				}
 			case 15:
 				{
 					cSt.mode = 4;
-					cSt.bkmode = 6;
+					cSt.bkmode = 7;
 					break;
 				}
 			case 16:
@@ -499,6 +641,58 @@ void loop() {
 					break;
 				}
 		}
+	}
+
+	switch (cSt.bkmode) {
+		case 0:
+			{
+				if ((tt&7) == 1) {
+					rainbowcycling();
+				}
+				break;
+			}
+		case 1:
+			{
+				setbkcolor(0);
+				break;
+			}
+		case 2:
+			{
+				setbkcolor(214);
+				break;
+			}
+		case 3:
+			{
+				setbkcolor(86);
+				break;
+			}
+		case 4:
+			{
+				setbkcolor(150);
+				break;
+			}
+		case 5:
+			{
+				setbkcolor(43);
+				break;
+			}
+		case 6:
+			{
+				setbkcolor(172);
+				break;
+			}
+		case 7:
+			{
+				setbkcolor(240);
+				break;
+			}
+		case 8:
+			{
+				setbkcolor(110);
+				break;
+			}
+		default:
+			break;
 	}
 
 	switch (cSt.mode) {
@@ -552,48 +746,16 @@ void loop() {
                 showhumidity();
                 break;
             }
-		default:
-			break;
-	}
-
-	switch (cSt.bkmode) {
-		case 0:
-			{
-				if ((tt&7) == 1) {
-					rainbowcycling();
-				}
-				break;
-			}
-		case 1:
-			{
-				setbkcolor(0);
-				break;
-			}
-		case 2:
-			{
-				setbkcolor(214);
-				break;
-			}
-		case 3:
-			{
-				setbkcolor(86);
-				break;
-			}
-		case 4:
-			{
-				setbkcolor(150);
-				break;
-			}
-		case 5:
-			{
-				setbkcolor(43);
-				break;
-			}
-		case 6:
-			{
-				setbkcolor(172);
-				break;
-			}
+        case 10:
+            {
+                showtemp2();
+                break;
+            }
+        case 11:
+            {
+                showdow();
+                break;
+            }
 		default:
 			break;
 	}
