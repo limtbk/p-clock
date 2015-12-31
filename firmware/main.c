@@ -16,28 +16,11 @@
 #include "ds3231.h"
 #include "ws2812.h"
 #include "timer1.h"
-#include "bmp085.h"
-#include "dht11.h"
 
-#define SND PORT_D2
+#define LED PORTA_D13
+#define PRGM PORTA_D2
 
-#define DS3231_IN32KHZ PORT_C3 //PCINT11 on PCIE1
-#define DS3231_INSQW PORT_D4 //PCINT20 on PCIE2
-#define DS3231_RST PORT_D3
-
-typedef struct AvgInt8Struct {
-	int16_t value;
-	int8_t measures;
-	int8_t hour;
-	int8_t values[24];
-} AvgInt8;
-
-typedef struct AvgInt16Struct {
-	int32_t value;
-	int8_t measures;
-	int8_t hour;
-	int16_t values[24];
-} AvgInt16;
+#define SND PORTA_D11
 
 typedef struct ClockStatusStruct {
 	uint8_t mode;
@@ -51,43 +34,9 @@ typedef struct ClockStatusStruct {
 	TTime restTimeStart;
 	uint8_t workTimeMinutes;
 	uint8_t restTimeMinutes;
-	TTemperature temp0;
-	int8_t temp1;
-	int8_t temp2;
-	int16_t pressure;
-	int8_t humidity;
-	AvgInt8 avgHummidity;
-	AvgInt8 avgTemperature;
-	AvgInt16 avgPressure;
 } TClockStatus;
 
 TClockStatus cSt;
-
-void addAvg8(AvgInt8 *avg, int8_t val) {
-	uint8_t hour = dectobin(cSt.time.hour);
-	if (hour==avg->hour) {
-		avg->value += val;
-		avg->measures++;
-	} else {
-		avg->values[avg->hour] = (avg->value / avg->measures);
-		avg->hour = hour;
-		avg->measures = 1;
-		avg->value = val;
-	}
-}
-
-void addAvg16(AvgInt16 *avg, int16_t val) {
-	uint8_t hour = dectobin(cSt.time.hour);
-	if (hour==avg->hour) {
-		avg->value += val;
-		avg->measures++;
-	} else {
-		avg->values[avg->hour] = (avg->value / avg->measures);
-		avg->hour = hour;
-		avg->measures = 1;
-		avg->value = val;
-	}
-}
 
 void clrscr() {
 	for (uint8_t i = 0; i<P_TOTAL*3; i++) {
@@ -96,66 +45,12 @@ void clrscr() {
 	}
 }
 
-//ISR(PCINT0_vect) {
-//	static uint16_t t = 0;
-//	t++;
-//	if (t == 0) {
-////		usart_putchr('0');
-//	}
-//}
-//
-//ISR(PCINT1_vect) {
-//	static uint32_t t = 0;
-//	static uint8_t s = 0;
-//
-//	t++;
-//	if (s != cSt.time.sec) {
-//		s = cSt.time.sec;
-////		usart_printhex(t>>24);
-////		usart_printhex(t>>16);
-////		usart_printhex(t>>8);
-////		usart_printhex(t);
-////		usart_printstr("\n\r");
-//		t = 0;
-//	}
-////	if (t == 32768) {
-////		t = 0;
-//////		usart_putchr('1');
-////	}
-//}
-//
-//ISR(PCINT2_vect) {
-//	static uint16_t t = 0;
-//	t++;
-//	if (t == 0) {
-////		usart_putchr('2');
-//	}
-//}
-
 void init() {
 	usart_init();
 	i2c_init();
 	timer1_init();
-	bmp085_init();
-	SETD(LED_CTRL0);
-	CLRP(LED_CTRL0);
-	SETD(LED_CTRL1);
-	CLRP(LED_CTRL1);
-	SETD(LED_CTRL2);
-	CLRP(LED_CTRL2);
-	SETD(LED_CTRL3);
-	CLRP(LED_CTRL3);
-	SETD(LED_CTRL4);
-	CLRP(LED_CTRL4);
-	SETD(LED_CTRL5);
-	CLRP(LED_CTRL5);
-
-	SETP(DS3231_IN32KHZ); //set pull-up resistor
-	CLRD(DS3231_IN32KHZ);
-	SETP(DS3231_INSQW); //set pull-up resistor
-	CLRD(DS3231_INSQW);
-	SETP(DS3231_RST);
-	SETD(DS3231_RST);
+	SETD(LED_CTRL);
+	CLRP(LED_CTRL);
 
 	SETD(SND);
 	cSt.sndon = 1;
@@ -223,8 +118,6 @@ void handle_uart() {
 						"kx - color mode\n\r"
 						"s - start work\n\r"
 						"a - start rest\n\r"
-						"c - cycling on/off\n\r"
-						"q - read last 24hr stats\n\r"
 						"p - play sound\n\r"
 						"o - sound on/off\n\r"
 						);
@@ -332,37 +225,6 @@ void handle_uart() {
 				usart_printhex(cSt.restTimeMinutes);
 				break;
 			}
-		case 'c':
-			{
-				cSt.cycling = !cSt.cycling;
-				usart_printstr("cycling ");
-				if (cSt.cycling) {
-					usart_printstr("on");
-				} else {
-					usart_printstr("off");
-				}
-				break;
-			}
-		case 'q':
-			{
-				usart_printstr("\n\rtem ");
-				uint8_t hour = dectobin(cSt.time.hour);
-				for (uint8_t i = 0; i < 24; i++) {
-					usart_printhex(cSt.avgTemperature.values[(hour+i+1)%24]);
-				}
-				usart_printstr("\n\rprs ");
-				for (uint8_t i = 0; i < 24; i++) {
-					usart_printhex(cSt.avgPressure.values[(hour+i+1)%24]/256);
-					usart_printhex(cSt.avgPressure.values[(hour+i+1)%24]%256);
-				}
-				usart_printstr("\n\rhum ");
-				for (uint8_t i = 0; i < 24; i++) {
-					usart_printhex(cSt.avgHummidity.values[(hour+i+1)%24]);
-				}
-
-				break;
-			}
-
 		default:
 			break;
 	}
@@ -372,6 +234,9 @@ void handle_uart() {
 void rainbowcycling() {
 	static uint8_t tt = 0;
 	tt++;
+	if (tt > P_TOTAL) {
+		tt -= P_TOTAL;
+	}
 	for (uint8_t i = 0; i < P_TOTAL; i++) {
 		uint8_t hsv[3] = {((i+tt)*255)/P_TOTAL, 255, 16};
 		hsvToGrb(hsv, &(pattern[i*3]));
@@ -392,10 +257,10 @@ void showclock() {
 	setnum(3, (cSt.time.hour & 0xF0) >> 4);
 
 	uint8_t sec = dectobin(cSt.time.sec);
-	uint8_t ss = sec % 12 + 2;
-	current_pixels[(8*5+sec/12)*3+0] = ((ss & 2) ? 16 : 0) * (ss & 1);
-	current_pixels[(8*5+sec/12)*3+1] = ((ss & 4) ? 16 : 0) * (ss & 1);
-	current_pixels[(8*5+sec/12)*3+2] = ((ss & 8) ? 16 : 0) * (ss & 1);
+	uint8_t ss = sec % 2;
+	current_pixels[(2*13+ss)*3+0] = pattern[(2*13+ss)*3+0];
+	current_pixels[(2*13+ss)*3+1] = pattern[(2*13+ss)*3+1];
+	current_pixels[(2*13+ss)*3+2] = pattern[(2*13+ss)*3+2];
 }
 
 void showseconds() {
@@ -412,47 +277,46 @@ void showdate() {
 	setnum(3, (cSt.date.day & 0xF0) >> 4);
 }
 
-void showdow() {
-	switch (cSt.date.weekday) {
-		case 1:
-			setchr(9, 21); //PN
-			setchr(5, 22);
-			break;
-		case 2:
-			setchr(9, 11); //VT
-			setchr(5, 23);
-			break;
-		case 3:
-			setchr(9, 12); //SR
-			setchr(5, 24);
-			break;
-		case 4:
-			setchr(9, 4); //4T
-			setchr(5, 23);
-			break;
-		case 5:
-			setchr(9, 21); //PT
-			setchr(5, 23);
-			break;
-		case 6:
-			setchr(9, 12); //SB
-			setchr(5, 25);
-			break;
-		case 7:
-			setchr(9, 11); //VS
-			setchr(5, 12);
-			break;
-		default:
-			break;
-	}
-}
+//void showdow() {
+//	switch (cSt.date.weekday) {
+//		case 1:
+//			setchr(9, 21); //PN
+//			setchr(5, 22);
+//			break;
+//		case 2:
+//			setchr(9, 11); //VT
+//			setchr(5, 23);
+//			break;
+//		case 3:
+//			setchr(9, 12); //SR
+//			setchr(5, 24);
+//			break;
+//		case 4:
+//			setchr(9, 4); //4T
+//			setchr(5, 23);
+//			break;
+//		case 5:
+//			setchr(9, 21); //PT
+//			setchr(5, 23);
+//			break;
+//		case 6:
+//			setchr(9, 12); //SB
+//			setchr(5, 25);
+//			break;
+//		case 7:
+//			setchr(9, 11); //VS
+//			setchr(5, 12);
+//			break;
+//		default:
+//			break;
+//	}
+//}
 
 void showyear() {
-
-	setchr(1, cSt.date.year & 0x0F);
-	setchr(5, (cSt.date.year & 0xF0) >> 4);
-	setchr(9, 0);
-	setchr(13, 2);
+	setnum(0, cSt.date.year & 0x0F);
+	setnum(1, (cSt.date.year & 0xF0) >> 4);
+	setnum(2, 0);
+	setnum(3, 2);
 }
 
 void showwork() {
@@ -506,47 +370,6 @@ void showrest() {
 	}
 }
 
-void showtemp0() {
-	setchr(5, 20);
-	setchr(1, 12);
-	setchr(9, cSt.temp0.intPart & 0x0F);
-	setchr(13, (cSt.temp0.intPart & 0xF0) >> 4);
-}
-
-void showtemp1() {
-	setchr(5, 20);
-	setchr(1, 12);
-	setchr(9, cSt.temp1 & 0x0F);
-	setchr(13, (cSt.temp1 & 0xF0) >> 4);
-}
-
-void showtemp2() {
-	setchr(5, 20);
-	setchr(1, 12);
-	setchr(9, cSt.temp2 & 0x0F);
-	setchr(13, (cSt.temp2 & 0xF0) >> 4);
-}
-
-void showpressure() {
-	setchr(1, 18);
-	setchr(5, cSt.pressure%10);
-	setchr(9, (cSt.pressure/10)%10);
-	setchr(13, (cSt.pressure/100)%10);
-}
-
-void showhumidity() {
-	if ((cSt.humidity/100)%10) {
-		setchr(1, 19);
-		setchr(5, cSt.humidity%10);
-		setchr(9, (cSt.humidity/10)%10);
-		setchr(13, (cSt.humidity/100)%10);
-	} else {
-		setchr(3, 19);
-		setchr(7, cSt.humidity%10);
-		setchr(11, (cSt.humidity/10)%10);
-	}
-}
-
 void loop() {
 	static uint8_t tt = 0;
 	tt++;
@@ -562,91 +385,13 @@ void loop() {
 		timer1_delay_ms(900);
 	}
 	ds3231_getdate(&cSt.date, 1);
-	if (cSt.mode == 6) {
-		if (cSt.mmode != cSt.mode) {
-			ds3231_gettemperature(&cSt.temp0, 1);
-			addAvg8(&cSt.avgTemperature, dectobin(cSt.temp0.intPart));
-		}
-	}
-	if (cSt.mode == 7) {
-		if (cSt.mmode != cSt.mode) {
-			int8_t temp = bmp085_gettemperature();
-			cSt.temp1 = bintodec(temp);
-			addAvg8(&cSt.avgTemperature, temp);
-		}
-	}
-	if (cSt.mode == 8) {
-		if (cSt.mmode != cSt.mode) {
-			cSt.pressure = (bmp085_getpressure()*10)/1333; // Pa to mmHg
-			addAvg16(&cSt.avgPressure, cSt.pressure);
-		}
-	}
-	if (cSt.mode == 9) {
-		if (cSt.mmode != cSt.mode) {
-			cSt.humidity = dht11_gethumidity();
-			addAvg8(&cSt.avgHummidity, cSt.humidity);
-		}
-	}
-	if (cSt.mode == 10) {
-		if (cSt.mmode != cSt.mode) {
-			int8_t temp = dht11_gettemperature();
-			cSt.temp2 = bintodec(temp);
-			addAvg8(&cSt.avgTemperature, temp);
-		}
-	}
-	cSt.mmode = cSt.mode;
 
-	if (cSt.cycling) {
-		switch (dectobin(cSt.time.sec)/3) {
-			case 6:
-				{
-					cSt.mode = 10;
-					cSt.bkmode = 1;
-					break;
-				}
-			case 8:
-				{
-					cSt.mode = 8;
-					cSt.bkmode = 3;
-					break;
-				}
-			case 10:
-				{
-					cSt.mode = 9;
-					cSt.bkmode = 2;
-					break;
-				}
-			case 14:
-				{
-					cSt.mode = 11;
-					cSt.bkmode = 8;
-					break;
-				}
-			case 15:
-				{
-					cSt.mode = 4;
-					cSt.bkmode = 7;
-					break;
-				}
-			case 16:
-				{
-					cSt.mode = 5;
-					cSt.bkmode = 6;
-					break;
-				}
-			default:
-				{
-					cSt.mode = 0;
-					cSt.bkmode = 0;
-					break;
-				}
-		}
-	}
+	cSt.mmode = cSt.mode;
 
 	switch (cSt.bkmode) {
 		case 0:
 			{
-				if ((tt&7) == 1) {
+				if ((tt&15) == 1) {
 					rainbowcycling();
 				}
 				break;
@@ -726,36 +471,6 @@ void loop() {
 				showyear();
 				break;
 			}
-        case 6:
-            {
-                showtemp0();
-                break;
-            }
-        case 7:
-            {
-                showtemp1();
-                break;
-            }
-        case 8:
-            {
-                showpressure();
-                break;
-            }
-        case 9:
-            {
-                showhumidity();
-                break;
-            }
-        case 10:
-            {
-                showtemp2();
-                break;
-            }
-        case 11:
-            {
-                showdow();
-                break;
-            }
 		default:
 			break;
 	}

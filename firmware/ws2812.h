@@ -13,21 +13,16 @@
 #include "ports.h"
 #include "macro.h"
 
-#define LED_CTRL0 PORT_D5
-#define LED_CTRL1 PORT_D6
-#define LED_CTRL2 PORT_D7
-#define LED_CTRL3 PORT_B0
-#define LED_CTRL4 PORT_B1
-#define LED_CTRL5 PORT_B2
+#define LED_CTRL PORTA_D8
 
 void refresh();
 
-#define P_WIDTH 17
-#define P_HEIGHT 5
-#define P_TOTAL (P_WIDTH*P_HEIGHT)
-#define D_WIDTH 3
-#define D_HEIGHT 5
-#define D_TOTAL (D_WIDTH*D_HEIGHT)
+//#define D_WIDTH 3
+//#define D_HEIGHT 5
+#define D_TOTAL (15-2)
+//#define P_WIDTH 17
+//#define P_HEIGHT 5
+#define P_TOTAL (D_TOTAL*4+2)
 
 uint8_t current_pixels[P_TOTAL*3];
 uint8_t new_pixels[P_TOTAL*3];
