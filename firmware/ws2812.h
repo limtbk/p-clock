@@ -23,10 +23,14 @@ void refresh();
 //#define P_WIDTH 17
 //#define P_HEIGHT 5
 #define P_TOTAL (D_TOTAL*4+2)
+#define CEILING(x,y) (((x) + (y) - 1) / (y))
+#define P_TOTAL_BIT CEILING(P_TOTAL,8)
 
 uint8_t current_pixels[P_TOTAL*3];
 uint8_t new_pixels[P_TOTAL*3];
 uint8_t pattern[P_TOTAL*3];
+uint8_t old_pattern[P_TOTAL_BIT];
+uint8_t new_pattern[P_TOTAL_BIT];
 
 void setnum(uint8_t pos, uint8_t num);
 void setchr(uint8_t pos, uint8_t num);

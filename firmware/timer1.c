@@ -8,8 +8,6 @@
 #include "timer1.h"
 #include "ports.h"
 
-uint16_t timer1_lastTime;
-
 void timer1_init(void) {
 #if defined (__AVR_ATmega32U4__)
 	TCCR1A = (0<<COM1A1)|(0<<COM1A0)|(0<<COM1B1)|(0<<COM1B0)|(0<<COM1C1)|(0<<COM1C0)|(0<<WGM11)|(0<<WGM10);
@@ -32,6 +30,7 @@ void resetTimer1(void) {
 }
 
 uint16_t timer1_measureTime(void) {
+	static uint16_t timer1_lastTime;
 	uint16_t time = TCNT1;
 	uint16_t result = time - timer1_lastTime;
 	timer1_lastTime = time;

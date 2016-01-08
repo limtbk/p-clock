@@ -80,6 +80,27 @@ void setnum(uint8_t apos, uint8_t num) {
 	}
 }
 
+//void setnum1(uint8_t apos, uint8_t num) {
+//	uint8_t pos = 3 - apos;
+//	uint8_t saddr = pos*(D_TOTAL);
+//	saddr += (pos>1)?2:0;
+//	uint16_t symbit = pgm_read_word(&numfnt[num]);
+//	uint8_t i = D_TOTAL;
+//	uint8_t b_addr = saddr / 8;
+//	uint8_t b_bit = saddr % 8;
+//	while (i) {
+//		uint8_t msk = (symbit&0x8000)?255:0;
+//		new_pattern[b_addr]
+//		current_pixels[saddr*3+0] = pattern[saddr*3+0]&msk;
+//		current_pixels[saddr*3+1] = pattern[saddr*3+1]&msk;
+//		current_pixels[saddr*3+2] = pattern[saddr*3+2]&msk;
+//		symbit = symbit<<1;
+//		saddr++;
+//		i--;
+//	}
+//}
+
+
 void refresh() {
 	cli();
 	for (uint8_t i = 0; i<P_TOTAL*3; i++) {

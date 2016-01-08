@@ -7,6 +7,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+//#include <avr/wdt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "ports.h"
@@ -19,7 +20,6 @@
 
 #define LED PORTA_D13
 #define PRGM PORTA_D2
-
 #define SND PORTA_D11
 
 typedef struct ClockStatusStruct {
@@ -34,6 +34,7 @@ typedef struct ClockStatusStruct {
 	TTime restTimeStart;
 	uint8_t workTimeMinutes;
 	uint8_t restTimeMinutes;
+	uint8_t fps;
 } TClockStatus;
 
 TClockStatus cSt;
@@ -46,11 +47,14 @@ void clrscr() {
 }
 
 void init() {
+//	wdt_enable(WDTO_1S);
 	usart_init();
 	i2c_init();
 	timer1_init();
 	SETD(LED_CTRL);
 	CLRP(LED_CTRL);
+
+	SETD(LED);
 
 	SETD(SND);
 	cSt.sndon = 1;
@@ -75,7 +79,7 @@ void init() {
 void playsnd() {
 	//4kHz = 250us
 	if (cSt.sndon) {
-		for (uint16_t i = 0; i < 1000; i++) {
+		for (uint16_t i = 0; i < 500; i++) {
 			INVP(SND);
 			timer1_delay_us2(250);
 		}
@@ -225,6 +229,22 @@ void handle_uart() {
 				usart_printhex(cSt.restTimeMinutes);
 				break;
 			}
+		case 'f':
+			{
+				usart_printhex(cSt.fps);
+				usart_printstr("\n\r");
+#ifdef I2C_DEBUG
+				uint16_t* dbg = dbginfo();
+				for (uint8_t i = 0; i < 6; ++i) {
+					usart_printhex(HI(dbg[i]));
+					usart_printhex(LO(dbg[i]));
+					usart_printstr(" ");
+				}
+				usart_printstr("\n\r");
+#endif
+				break;
+			}
+
 		default:
 			break;
 	}
@@ -326,6 +346,7 @@ void showwork() {
 
 	int16_t rtime = ttime - dtime;
 	if ((rtime<0) || (rtime>wtime)) {
+		playsnd();
 		startrest();
 	} else {
 		TTime timer;
@@ -351,6 +372,7 @@ void showrest() {
 
 	int16_t rtime = ttime - dtime;
 	if ((rtime<0) || (rtime>wtime)) {
+		playsnd();
 		startwork();
 	} else {
 		TTime timer;
@@ -371,8 +393,15 @@ void showrest() {
 }
 
 void loop() {
+	static TTime prevTime;
+	static uint8_t fps = 0;
+	fps++;
+//	wdt_reset();
+
 	static uint8_t tt = 0;
 	tt++;
+//	usart_printhex(tt);
+//	usart_printstr("\n\r");
 	clrscr();
 
 	if (usart_chrready()) {
@@ -380,11 +409,29 @@ void loop() {
 	}
 
 	ds3231_gettime(&cSt.time, 1);
-	if ((cSt.time.min == 0) && (cSt.time.sec == 0)) {
-		playsnd();
-		timer1_delay_ms(900);
+//	uint16_t* dbg = dbginfo();
+//	for (uint8_t i = 0; i < 6; ++i) {
+//		usart_printhex(HI(dbg[i]));
+//		usart_printhex(LO(dbg[i]));
+//		usart_printstr(" ");
+//	}
+//	usart_printstr("\n\r");
+	if (cSt.time.sec != prevTime.sec) {
+		if ((cSt.time.min == 0) && (cSt.time.sec == 0)) {
+			playsnd();
+		}
+		ds3231_getdate(&cSt.date, 1);
+//		dbg = dbginfo();
+//		for (uint8_t i = 0; i < 6; ++i) {
+//			usart_printhex(HI(dbg[i]));
+//			usart_printhex(LO(dbg[i]));
+//			usart_printstr(" ");
+//		}
+//		usart_printstr("\n\r");
+		prevTime = cSt.time;
+		cSt.fps = fps;
+		fps = 0;
 	}
-	ds3231_getdate(&cSt.date, 1);
 
 	cSt.mmode = cSt.mode;
 
@@ -398,32 +445,32 @@ void loop() {
 			}
 		case 1:
 			{
-				setbkcolor(0);
+				setbkcolor(0); //red
 				break;
 			}
 		case 2:
 			{
-				setbkcolor(214);
+				setbkcolor(172); //blue
 				break;
 			}
 		case 3:
 			{
-				setbkcolor(86);
+				setbkcolor(86); //green
 				break;
 			}
 		case 4:
 			{
-				setbkcolor(150);
+				setbkcolor(129); //green+blue
 				break;
 			}
 		case 5:
 			{
-				setbkcolor(43);
+				setbkcolor(43); //red+green
 				break;
 			}
 		case 6:
 			{
-				setbkcolor(172);
+				setbkcolor(214); //red+blue
 				break;
 			}
 		case 7:
