@@ -7,7 +7,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-//#include <avr/wdt.h>
+#include <avr/eeprom.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "ports.h"
@@ -39,6 +39,13 @@ typedef struct ClockStatusStruct {
 
 TClockStatus cSt;
 
+void reboot() {
+#ifdef __AVR_ATmega328P__
+	void *bl = (void *)0x3c00; //for ATMega328 with bootloader
+	goto *bl; //Yep, its hack to reboot without watchdog
+#endif
+}
+
 void clrscr() {
 	for (uint8_t i = 0; i<P_TOTAL*3; i++) {
 		new_pixels[i] = 0;
@@ -47,7 +54,13 @@ void clrscr() {
 }
 
 void init() {
-//	wdt_enable(WDTO_1S);
+	uint8_t reboots = eeprom_read_byte(0);
+	if (reboots) {
+		eeprom_write_byte(0, reboots-1);
+		eeprom_busy_wait();
+		reboot();
+	}
+
 	usart_init();
 	i2c_init();
 	timer1_init();
@@ -124,6 +137,8 @@ void handle_uart() {
 						"a - start rest\n\r"
 						"p - play sound\n\r"
 						"o - sound on/off\n\r"
+						"R - reboot\n\r"
+						"F - wait for new firmware during 20 reboots\n\r"
 						);
 				break;
 			}
@@ -242,6 +257,17 @@ void handle_uart() {
 				}
 				usart_printstr("\n\r");
 #endif
+				break;
+			}
+		case 'F':
+			{
+				eeprom_write_byte(0, 20);
+				eeprom_busy_wait();
+				break;
+			}
+		case 'R':
+			{
+				reboot();
 				break;
 			}
 
@@ -396,12 +422,9 @@ void loop() {
 	static TTime prevTime;
 	static uint8_t fps = 0;
 	fps++;
-//	wdt_reset();
 
 	static uint8_t tt = 0;
 	tt++;
-//	usart_printhex(tt);
-//	usart_printstr("\n\r");
 	clrscr();
 
 	if (usart_chrready()) {
@@ -409,25 +432,11 @@ void loop() {
 	}
 
 	ds3231_gettime(&cSt.time, 1);
-//	uint16_t* dbg = dbginfo();
-//	for (uint8_t i = 0; i < 6; ++i) {
-//		usart_printhex(HI(dbg[i]));
-//		usart_printhex(LO(dbg[i]));
-//		usart_printstr(" ");
-//	}
-//	usart_printstr("\n\r");
 	if (cSt.time.sec != prevTime.sec) {
 		if ((cSt.time.min == 0) && (cSt.time.sec == 0)) {
 			playsnd();
 		}
 		ds3231_getdate(&cSt.date, 1);
-//		dbg = dbginfo();
-//		for (uint8_t i = 0; i < 6; ++i) {
-//			usart_printhex(HI(dbg[i]));
-//			usart_printhex(LO(dbg[i]));
-//			usart_printstr(" ");
-//		}
-//		usart_printstr("\n\r");
 		prevTime = cSt.time;
 		cSt.fps = fps;
 		fps = 0;
