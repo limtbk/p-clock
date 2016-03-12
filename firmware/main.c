@@ -60,6 +60,12 @@ typedef struct ClockStatusStruct {
 	AvgInt8 avgHummidity;
 	AvgInt8 avgTemperature;
 	AvgInt16 avgPressure;
+	int8_t timezone;
+	uint8_t dst;
+	uint8_t dst_on_month;
+	uint8_t dst_on_day;
+	uint8_t dst_off_month;
+	uint8_t dst_off_day;
 } TClockStatus;
 
 TClockStatus cSt;
@@ -139,6 +145,29 @@ void clrscr() {
 ////		usart_putchr('2');
 //	}
 //}
+void loadsettings() {
+	cSt.timezone = eeprom_read_byte((void *)2);
+	cSt.dst = eeprom_read_byte((void *)3);
+	cSt.dst_on_month = eeprom_read_byte((void *)4);
+	cSt.dst_on_day = eeprom_read_byte((void *)5);
+	cSt.dst_off_month = eeprom_read_byte((void *)6);
+	cSt.dst_off_day = eeprom_read_byte((void *)7);
+}
+
+void savesettings() {
+	eeprom_write_byte((void *)2, cSt.timezone);
+	eeprom_busy_wait();
+	eeprom_write_byte((void *)3, cSt.dst);
+	eeprom_busy_wait();
+	eeprom_write_byte((void *)4, cSt.dst_on_month);
+	eeprom_busy_wait();
+	eeprom_write_byte((void *)5, cSt.dst_on_day);
+	eeprom_busy_wait();
+	eeprom_write_byte((void *)6, cSt.dst_off_month);
+	eeprom_busy_wait();
+	eeprom_write_byte((void *)7, cSt.dst_off_day);
+	eeprom_busy_wait();
+}
 
 void init() {
 	uint8_t reboots = eeprom_read_byte(0);
@@ -147,6 +176,8 @@ void init() {
 		eeprom_busy_wait();
 		reboot();
 	}
+	loadsettings();
+
 	usart_init();
 	i2c_init();
 	timer1_init();
@@ -201,7 +232,6 @@ void playsnd() {
 	}
 }
 
-
 void startwork() {
 	cSt.workTimeStart.hour = cSt.time.hour;
 	cSt.workTimeStart.min = cSt.time.min;
@@ -229,8 +259,8 @@ void handle_uart() {
 				usart_printstr("help");
 				usart_printstr("\n\r"
 						"h - help\n\r"
-						"thhmmss - set time\n\r"
-						"dyymmddw - set date\n\r"
+						"thhmmss - set GMT time\n\r"
+						"dyymmddw - set GMT date\n\r"
 						"wmm - set worktime\n\r"
 						"rmm - set resttime\n\r"
 						"mx - mode\n\r"
@@ -241,6 +271,10 @@ void handle_uart() {
 						"q - read last 24hr stats\n\r"
 						"p - play sound\n\r"
 						"o - sound on/off\n\r"
+						"D - DST\n\r"
+						"T+hh - timezone\n\r"
+						"Ymmdd - DST on date (+1hr to timezone)\n\r"
+						"Ummdd - DST off date\n\r"
 						"R - reboot\n\r"
 						"F - wait for new firmware during 20 reboots\n\r"
 						);
@@ -359,6 +393,37 @@ void handle_uart() {
 				}
 				break;
 			}
+		case 'D':
+			{
+				cSt.dst = !cSt.dst;
+				usart_printstr("daylight saving time ");
+				if (cSt.dst) {
+					usart_printstr("on");
+				} else {
+					usart_printstr("off");
+				}
+				savesettings();
+				break;
+			}
+		case 'T':
+			{
+				usart_printstr("timezone");
+				char s = usart_getchr();
+				if ((s == '+') || s == '-') {
+					usart_putchr(s);
+					cSt.timezone = usart_hextochar(usart_getchr())*10;
+					cSt.timezone += usart_hextochar(usart_getchr());
+				} else {
+					cSt.timezone = usart_hextochar(s)*10;
+					cSt.timezone += usart_hextochar(usart_getchr());
+				}
+				if (s == '-') {
+					cSt.timezone = -cSt.timezone;
+				}
+				usart_printhex(cSt.timezone);
+				savesettings();
+				break;
+			}
 		case 'q':
 			{
 				usart_printstr("\n\rtem ");
@@ -376,6 +441,40 @@ void handle_uart() {
 					usart_printhex(cSt.avgHummidity.values[(hour+i+1)%24]);
 				}
 
+				break;
+			}
+		case 'Y':
+			{
+				usart_printstr("DST on date current ");
+				usart_printhex(cSt.dst_on_month);
+				usart_printhex(cSt.dst_on_day);
+				usart_printstr(" new ");
+				uint8_t month = usart_hextochar(usart_getchr())*10;
+				month += usart_hextochar(usart_getchr());
+				usart_printhex(month);
+				uint8_t day = usart_hextochar(usart_getchr())*10;
+				day += usart_hextochar(usart_getchr());
+				usart_printhex(day);
+				cSt.dst_on_day = day;
+				cSt.dst_on_month = month;
+				savesettings();
+				break;
+			}
+		case 'U':
+			{
+				usart_printstr("DST off date current ");
+				usart_printhex(cSt.dst_off_month);
+				usart_printhex(cSt.dst_off_day);
+				usart_printstr(" new ");
+				uint8_t month = usart_hextochar(usart_getchr())*10;
+				month += usart_hextochar(usart_getchr());
+				usart_printhex(month);
+				uint8_t day = usart_hextochar(usart_getchr())*10;
+				day += usart_hextochar(usart_getchr());
+				usart_printhex(day);
+				cSt.dst_off_day = day;
+				cSt.dst_off_month = month;
+				savesettings();
 				break;
 			}
 		case 'F':
@@ -583,12 +682,23 @@ void loop() {
 		handle_uart();
 	}
 
-	ds3231_gettime(&cSt.time, 1);
+	uint32_t timestamp = ds3231_gettimestamp();
+	timestamp += cSt.timezone * 3600;
+	if (cSt.dst) {
+		if ((cSt.date.month>cSt.dst_on_month) || ((cSt.date.month==cSt.dst_on_month) && (cSt.date.day>=cSt.dst_on_day))) {
+			if ((cSt.date.month<cSt.dst_off_month) || ((cSt.date.month==cSt.dst_off_month) && (cSt.date.day<cSt.dst_off_day))) {
+				timestamp += 3600;
+			}
+		}
+	}
+
+	timestamptodatetime(timestamp, &cSt.date, &cSt.time);
+
 	if ((cSt.time.min == 0) && (cSt.time.sec == 0)) {
 		playsnd();
 		timer1_delay_ms(900);
 	}
-	ds3231_getdate(&cSt.date, 1);
+
 	if (cSt.mode == 6) {
 		if (cSt.mmode != cSt.mode) {
 			ds3231_gettemperature(&cSt.temp0, 1);
