@@ -65,6 +65,17 @@ uint8_t ds3231_gettime(TTime *time, uint8_t bcd) {
 	return res;
 }
 
+uint32_t ds3231_gettimestamp() {
+	TTime time;
+	TDate date;
+	uint8_t res = ds3231_gettime(&time, 1);
+	if (!res) {
+		res = ds3231_getdate(&date, 1);
+	}
+	uint32_t result = datetimetotimestamp(date, time);
+	return result;
+}
+
 uint8_t ds3231_setdate(TDate date, uint8_t bcd) {
 	uint8_t res = 0;
 	res = i2c_start(DS13xx_I2C_ADDRESS << 1);
@@ -202,3 +213,75 @@ void secondstotime(uint16_t seconds, TTime *time) {
 	time->min = bintodec(min);
 	time->hour = bintodec(hour);
 }
+
+uint8_t dayofweek(TDate date) {
+	int16_t y = dectobin(date.year) + 2000;
+	int16_t m = dectobin(date.month);
+	int16_t d = dectobin(date.day);
+	int16_t weekday = (d+=m<3?y--:y-2,23*m/9+d+4+y/4-y/100+y/400)%7; //This One Liner Solution for "C" was given by Michael Keith and Tom Craver
+	return (uint8_t)weekday;
+}
+
+static uint8_t month_leap [] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+static uint8_t month_common [] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+uint8_t leapyear(uint8_t year) {
+	uint8_t result = ((year % 4) == 0) && ((year % 100) != 0);
+	return result;
+}
+
+uint16_t daysinyear(uint8_t year) {
+	uint16_t result = (((year % 4) == 0) && ((year % 100) != 0)) ? 366 : 365;
+	return result;
+}
+
+uint16_t datetodays(TDate date) { //days from 1 JAN 2000, so 1 is 2 JAN 2000
+	uint16_t days = dectobin(date.day) - 1;
+	uint8_t *monthdays = (leapyear(dectobin(date.year))) ? month_leap : month_common;
+
+	for (int8_t i = 0; i < dectobin(date.month) - 1; i++) {
+		days += monthdays[i];
+	}
+	for (uint8_t i = 0; i < dectobin(date.year); i++) {
+		days += daysinyear(i);
+	}
+	return days;
+}
+
+void daystodate(uint16_t days, TDate *date) {
+	uint8_t year = 0;
+	uint16_t days_s = days;
+	while (days_s >= daysinyear(year)) {
+		days_s -= daysinyear(year);
+		year++;
+	}
+	uint8_t *monthdays;
+	if (leapyear(year)) {
+		monthdays = month_leap;
+	} else {
+		monthdays = month_common;
+	}
+	uint8_t month = 0;
+	while (days_s >= monthdays[month]) {
+		days_s -= monthdays[month];
+		month++;
+	}
+	date->day = bintodec(days_s + 1);
+	date->month = bintodec(month + 1);
+	date->year = bintodec(year);
+	date->weekday = dayofweek(*date);
+}
+
+uint32_t datetimetotimestamp(TDate date, TTime time) {
+	uint32_t result = timetoseconds(time);
+	result += datetodays(date)*86400;
+	return result;
+}
+
+void timestamptodatetime(uint32_t timestamp, TDate *date, TTime *time) {
+	int32_t days = timestamp / 86400;
+	int32_t seconds = timestamp % 86400;
+	secondstotime((uint16_t)seconds, time);
+	daystodate((uint16_t)days, date);
+}
+
