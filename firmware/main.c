@@ -592,13 +592,14 @@ void loop() {
 	if (cSt.mode == 6) {
 		if (cSt.mmode != cSt.mode) {
 			ds3231_gettemperature(&cSt.temp0, 1);
+			cSt.temp0.intPart = cSt.temp0.intPart - 7;
 			addAvg8(&cSt.avgTemperature, dectobin(cSt.temp0.intPart));
 		}
 	}
 	if (cSt.mode == 7) {
 		if (cSt.mmode != cSt.mode) {
 			int8_t temp = bmp085_gettemperature();
-			cSt.temp1 = bintodec(temp);
+			cSt.temp1 = bintodec(temp)-3;
 			addAvg8(&cSt.avgTemperature, temp);
 		}
 	}
@@ -617,7 +618,7 @@ void loop() {
 	if (cSt.mode == 10) {
 		if (cSt.mmode != cSt.mode) {
 			int8_t temp = dht11_gettemperature();
-			cSt.temp2 = bintodec(temp);
+			cSt.temp2 = bintodec(temp)-2;
 			addAvg8(&cSt.avgTemperature, temp);
 		}
 	}
