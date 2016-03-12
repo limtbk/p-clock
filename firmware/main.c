@@ -7,6 +7,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "ports.h"
@@ -89,6 +90,13 @@ void addAvg16(AvgInt16 *avg, int16_t val) {
 	}
 }
 
+void reboot() {
+#ifdef __AVR_ATmega328P__
+	void *bl = (void *)0x3c00; //for ATMega328 with bootloader
+	goto *bl; //Yep, its hack to reboot without watchdog
+#endif
+}
+
 void clrscr() {
 	for (uint8_t i = 0; i<P_TOTAL*3; i++) {
 		new_pixels[i] = 0;
@@ -133,6 +141,12 @@ void clrscr() {
 //}
 
 void init() {
+	uint8_t reboots = eeprom_read_byte(0);
+	if (reboots) {
+		eeprom_write_byte(0, reboots-1);
+		eeprom_busy_wait();
+		reboot();
+	}
 	usart_init();
 	i2c_init();
 	timer1_init();
@@ -227,6 +241,8 @@ void handle_uart() {
 						"q - read last 24hr stats\n\r"
 						"p - play sound\n\r"
 						"o - sound on/off\n\r"
+						"R - reboot\n\r"
+						"F - wait for new firmware during 20 reboots\n\r"
 						);
 				break;
 			}
@@ -360,6 +376,17 @@ void handle_uart() {
 					usart_printhex(cSt.avgHummidity.values[(hour+i+1)%24]);
 				}
 
+				break;
+			}
+		case 'F':
+			{
+				eeprom_write_byte(0, 20);
+				eeprom_busy_wait();
+				break;
+			}
+		case 'R':
+			{
+				reboot();
 				break;
 			}
 
