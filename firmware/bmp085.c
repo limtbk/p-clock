@@ -118,7 +118,7 @@ void bmp085_getrawpressure() {
 
 	//calculate raw pressure
 	b6 = bmp085_rawtemperature - 4000;
-	x1 = (bmp085_regb2* (b6 * b6) >> 12) >> 11;
+	x1 = (bmp085_regb2 * (b6 * b6) >> 12) >> 11;
 	x2 = (bmp085_regac2 * b6) >> 11;
 	x3 = x1 + x2;
 	b3 = (((((int32_t)bmp085_regac1) * 4 + x3) << BMP085_MODE) + 2) >> 2;
