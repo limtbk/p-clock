@@ -34,5 +34,7 @@ void usart_printstr(char *string);
 char usart_chartohex(char c);
 char usart_hextochar(char c);
 void usart_printhex(char c);
+void usart_printhex16(uint16_t c);
+void usart_printhex32(uint32_t c);
 
 #endif /* USART_H_ */

@@ -121,3 +121,15 @@ void usart_printhex(char c)
 	usart_putchr(hi + ((hi<10)?'0':'A'-10));
 	usart_putchr(lo + ((lo<10)?'0':'A'-10));
 }
+
+void usart_printhex16(uint16_t c)
+{
+	usart_printhex(HI(c));
+	usart_printhex(LO(c));
+}
+
+void usart_printhex32(uint32_t c)
+{
+	usart_printhex16(c>>16);
+	usart_printhex16(c&0xFFFF);
+}
