@@ -28,8 +28,6 @@ Zero version of the clock:
 3D-printed grid:
 ![Image 5][img5]
 
-Version 1.0 in progress...
-
 [img0]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_4920.JPG "IMG0"
 [img1]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_1836.JPG "IMG1"
 [img2]: https://raw.githubusercontent.com/limtbk/p-clock/master/images/IMG_1867.JPG "IMG2"
